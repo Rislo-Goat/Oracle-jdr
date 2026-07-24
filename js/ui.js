@@ -152,16 +152,37 @@ const UI = {
       const synth = window.speechSynthesis;
       synth.cancel();
       const u = new SpeechSynthesisUtterance(clean);
-      u.lang = "fr-FR";
       const voices = synth.getVoices() || [];
-      const fr = voices.find(v => /fr[-_]?FR/i.test(v.lang)) || voices.find(v => /^fr/i.test(v.lang));
-      if (fr) u.voice = fr;
-      if (kind === "pnj") { u.pitch = 0.6; u.rate = 0.95; } // voix de personnage / IA, plus grave
-      else { u.pitch = 1; u.rate = 1.03; }
+      let v = State.data.voiceName ? voices.find(x => x.name === State.data.voiceName) : null;
+      if (!v) v = this.bestVoice(voices);
+      if (v) { u.voice = v; u.lang = v.lang; } else u.lang = "fr-FR";
+      // Voix naturelle (plus robotique). Légère nuance pour une IA/PNJ, sans exagérer.
+      if (kind === "pnj") { u.pitch = 0.92; u.rate = 0.97; }
+      else { u.pitch = 1.0; u.rate = 1.0; }
       synth.speak(u);
       // Correctif iOS : la synthèse se met parfois en pause juste après speak()
       setTimeout(() => { try { if (synth.paused) synth.resume(); } catch (e) {} }, 120);
     } catch (e) { /* ignore */ }
+  },
+  // Choisit la meilleure voix française dispo (évite les voix "compact" bas de gamme).
+  bestVoice(voices) {
+    const fr = (voices || []).filter(v => /^fr/i.test(v.lang));
+    return fr.find(v => /(enhanced|premium|amélie|amelie|aurélie|aurelie|thomas|marie|siri)/i.test(v.name))
+        || fr.find(v => !/compact|eloquence/i.test(v.name))
+        || fr[0] || null;
+  },
+  setVoice(name) { State.data.voiceName = name || ""; State.save(); this.speak("Voix sélectionnée. La partie peut commencer.", "oracle"); },
+  voicePicker(d) {
+    const voices = ("speechSynthesis" in window) ? (window.speechSynthesis.getVoices() || []) : [];
+    if (!voices.length) return `<div class="hint">Voix en cours de chargement… tape « 🔊 Tester la voix » une fois, puis reviens pour choisir.</div>`;
+    const fr = voices.filter(v => /^fr/i.test(v.lang));
+    const others = voices.filter(v => !/^fr/i.test(v.lang));
+    const opt = v => `<option value="${this.esc(v.name)}" ${v.name === d.voiceName ? "selected" : ""}>${this.esc(v.name)} (${this.esc(v.lang)})</option>`;
+    return `<label class="f">Voix<select onchange="UI.setVoice(this.value)">
+      <option value="" ${!d.voiceName ? "selected" : ""}>Auto — meilleure voix française</option>
+      ${fr.length ? `<optgroup label="Français">${fr.map(opt).join("")}</optgroup>` : ""}
+      ${others.length ? `<optgroup label="Autres langues">${others.slice(0, 40).map(opt).join("")}</optgroup>` : ""}
+    </select></label>`;
   },
   speakId(id) {
     const c = State.current(); const e = (c.chronicle || []).find(x => x.id === id); if (!e) return;
@@ -1075,9 +1096,11 @@ const UI = {
 
       <div class="card">
         <h3>🔊 Voix</h3>
-        <div class="hint">Lecture à voix haute (synthèse de ton téléphone, gratuite). Un bouton 🔊 apparaît sur chaque narration de l'Oracle et chaque réplique de PNJ/IA (voix plus grave pour les personnages).</div>
+        <div class="hint">Lecture à voix haute (synthèse de ton téléphone, gratuite). Un bouton 🔊 apparaît sur chaque narration de l'Oracle et chaque réplique de PNJ dans la Partie.</div>
+        ${this.voicePicker(d)}
         <label class="chk chk-row"><input type="checkbox" ${d.autoRead ? "checked" : ""} onchange="UI.setAutoRead(this.checked)"> <span><b>Lire automatiquement</b> les réponses de l'Oracle à voix haute.</span></label>
-        <button class="btn btn-ghost btn-sm" onclick="UI.speak('Test de la voix de l\\'Oracle. La partie peut commencer.','oracle')">🔊 Tester la voix</button>
+        <button class="btn btn-ghost btn-sm" onclick="UI.speak('Ceci est un test de la voix. La partie peut commencer.','oracle')">🔊 Tester la voix</button>
+        <div class="hint" style="margin-top:10px">💡 Pour une voix bien plus naturelle sur iPhone : Réglages → Accessibilité → <b>Contenu énoncé</b> → Voix → Français → télécharge une voix <b>« Premium »</b>. Elle apparaîtra ensuite dans la liste ci-dessus.</div>
       </div>
 
       <div class="card">

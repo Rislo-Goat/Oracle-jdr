@@ -11,6 +11,11 @@ const App = {
     // navigation
     document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => UI.go(t.dataset.view)));
     document.getElementById("hudAiBadge").addEventListener("click", () => UI.go("table"));
+    // Charge les voix de synthèse (asynchrone sur iOS) et rafraîchit le sélecteur.
+    if ("speechSynthesis" in window) {
+      try { window.speechSynthesis.getVoices(); } catch (e) {}
+      window.speechSynthesis.onvoiceschanged = () => { if (UI.view === "table") UI.renderTable(); };
+    }
 
     if (!State.data.campaigns.length || !State.current()) {
       this.startOnboarding(false);
