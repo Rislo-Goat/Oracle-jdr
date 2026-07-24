@@ -64,7 +64,10 @@ const State = {
       speed: 9,                // vitesse (m)
       deathSaves: { s: 0, f: 0 },
       hitDice: "1d10",
-      spells: "",              // sorts / emplacements (texte libre)
+      hitDiceUsed: 0,          // dés de vie dépensés (repos)
+      slotsUsed: {},           // emplacements de sorts dépensés { "1": 1, "2": 0 }
+      gold: 0,                 // pièces d'or
+      spells: "",              // sorts connus / notes (texte libre)
       // ── commun ──
       stats: {},               // caracs génériques (systèmes non-5e)
       feats: "",               // capacités / dons / atouts (texte libre)
@@ -164,6 +167,9 @@ const State = {
         if (!h.race) h.race = "Humain";
         if (!h.cls) h.cls = "Guerrier";
         if (!h.deathSaves) h.deathSaves = { s: 0, f: 0 };
+        if (h.hitDiceUsed == null) h.hitDiceUsed = 0;
+        if (!h.slotsUsed || typeof h.slotsUsed !== "object") h.slotsUsed = {};
+        if (h.gold == null) h.gold = 0;
         if (h.speed == null) h.speed = 9;
         // ancien champ "abilities" servait de texte capacités → migré vers feats
         if (typeof h.feats !== "string") h.feats = "";

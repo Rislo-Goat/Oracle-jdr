@@ -30,7 +30,15 @@ const Oracle = {
         const prof = "+" + DND.profBonus(h.level || 1);
         const profSk = (h.skillProfs || []).length ? " | maîtrises : " + h.skillProfs.join(", ") : "";
         const saves = (h.saveProfs || []).length ? " | sauv. maîtrisées : " + h.saveProfs.join(",") : "";
-        return `• ${h.name}${h.player ? " (joué par " + h.player + ")" : ""} — ${h.race} ${cn(h.cls)}${cn(h.cls) !== h.cls ? " [" + h.cls + " 5e]" : ""} niv.${h.level}${h.concept ? " (" + h.concept + ")" : ""} | PV ${h.hp}/${h.maxHp}, CA ${h.armor}, init +${DND.abilityMod(h, "DEX")}, maîtrise ${prof} | ${ab}${profSk}${saves}${h.gear && h.gear.length ? " | sac : " + h.gear.join(", ") : ""}${h.conditions && h.conditions.length ? " | ÉTATS : " + h.conditions.join(", ") : ""}${h.feats ? " | atouts : " + h.feats : ""}${h.spells ? " | sorts : " + h.spells : ""}`;
+        let slotsTxt = "";
+        if (DND.isCaster(h.cls)) {
+          const mx = DND.slotsFor(h.cls, h.level);
+          const parts = Object.keys(mx).filter(k => k !== "pact").map(Number).sort((a, b) => a - b)
+            .map(lv => { const u = (h.slotsUsed && h.slotsUsed[lv]) || 0; return "niv" + lv + " " + (mx[lv] - u) + "/" + mx[lv]; });
+          if (parts.length) slotsTxt = " | emplacements : " + parts.join(", ") + (mx.pact ? " (Pacte)" : "");
+        }
+        const goldTxt = h.gold ? " | " + h.gold + " po" : "";
+        return `• ${h.name}${h.player ? " (joué par " + h.player + ")" : ""} — ${h.race} ${cn(h.cls)}${cn(h.cls) !== h.cls ? " [" + h.cls + " 5e]" : ""} niv.${h.level}${h.concept ? " (" + h.concept + ")" : ""} | PV ${h.hp}/${h.maxHp}, CA ${h.armor}, init +${DND.abilityMod(h, "DEX")}, maîtrise ${prof} | ${ab}${profSk}${saves}${h.gear && h.gear.length ? " | sac : " + h.gear.join(", ") : ""}${h.conditions && h.conditions.length ? " | ÉTATS : " + h.conditions.join(", ") : ""}${h.feats ? " | atouts : " + h.feats : ""}${h.spells ? " | sorts : " + h.spells : ""}${slotsTxt}${goldTxt}`;
       }
       const st = Object.entries(h.stats || {}).filter(([, v]) => v !== 0 && v !== "")
         .map(([k, v]) => `${k} ${v >= 0 ? "+" : ""}${v}`).join(", ");
@@ -123,6 +131,7 @@ Tu peux modifier la partie ET l'ambiance visuelle en direct en ajoutant, À LA F
 • [DEGATS: cible=Goule; formule=1d8+3; source=Lame vibro; type=tranchant]  → DEMANDE un jet de DÉGÂTS : le joueur lance ses dés de dégâts (carte dédiée) et l'app applique les PV. Émets-le APRÈS une attaque réussie, au lieu d'appliquer [PV] toi-même. Utilise le bon dé de l'arme/sort (dague 1d4, épée courte/rapière 1d6, épée longue/lame 1d8, arme lourde 1d10/1d12 ; ajoute le modificateur pertinent). Si la cible est un héros (dégâts subis), mets son nom en cible : l'app réduit ses PV. Ne chiffre jamais les dégâts toi-même — laisse le joueur lancer.
 • [COMBAT: start]  démarre le suivi d'initiative (l'app tire l'init des héros). [COMBAT: stop] le termine. [INIT: nom=Goule; valeur=14; pv=15]  ajoute un ennemi dans l'ordre d'initiative. [TOUR]  passe au combattant suivant.
 • [XP: cible=groupe; montant=100]  → attribue de l'XP (à tout le groupe, ou cible=Kael pour un seul). L'app cumule et signale quand un héros peut monter de niveau. Récompense après un combat, une énigme résolue, une étape importante.
+• [OR: cible=groupe; montant=50]  → attribue de l'or (butin monétaire) ; « groupe » partage entre tous. Annonce le trésor trouvé.
 • [FAIT: Le pont s'effondre derrière eux]  → inscrit un événement marquant dans la chronique.
 • [MEMO: L'héritier porte une marque de naissance en forme de croissant]  → ajoute un fait durable au CANON de la campagne (à retenir pour toujours). Max 2 par réponse.
 • [AMBIANCE: theme=ember; accent=#ff5500]  → change le THÈME visuel de l'app pour coller au moment (thèmes : default, royal, ember, neon, matrix, forest, ocean, light, cream).
@@ -146,7 +155,8 @@ MÉTHODE D'UN MJ EXPERT (applique-la en continu) :
 • Factions & conséquences : le monde bouge même sans les héros ; leurs choix ont des répercussions durables (inscris-les via [MEMO:] et [FAIT:]).
 • Équilibre : combats et défis calibrés au niveau et au nombre de héros ; laisse une porte de sortie ou une option maligne.
 • Spotlight : veille à ce que CHAQUE joueur ait son moment (surtout si peu nombreux) ; sollicite les compétences et les liens de chacun.
-• Progression (campagne classique) : récompense l'XP après les combats et les étapes clés via [XP: groupe; montant=…] (ordre de grandeur niv.1 : petit combat ~50-100 XP/héros, gros ~200+). Annonce clairement le BUTIN trouvé et ajoute-le à l'inventaire via [OBJET: cible=…; ajoute=…] (arme, objet, or…) en expliquant ce que c'est. Quand un héros passe un niveau, explique-lui les nouvelles capacités que sa classe débloque à ce niveau (tu connais la 5e) et invite-le à les noter.
+• Progression (campagne classique) : récompense l'XP après les combats et les étapes clés via [XP: groupe; montant=…] (ordre de grandeur niv.1 : petit combat ~50-100 XP/héros, gros ~200+). Annonce le BUTIN : objets via [OBJET: cible=…; ajoute=…], et l'argent via [OR: groupe; montant=…]. Quand un héros passe un niveau, explique-lui les capacités que sa classe débloque à ce niveau (tu connais la 5e).
+• Ressources 5e : respecte les emplacements de sorts (un sort de niveau X consomme un emplacement ; rappelle au joueur de cocher l'emplacement dans sa fiche). Propose les REPOS (court : soigne via dés de vie ; long : PV/emplacements récupérés) quand c'est logique dans la fiction. À 0 PV, le héros tombe inconscient : demande-lui un JET DE SAUVEGARDE CONTRE LA MORT à son tour (réussite 10+, il utilise le bouton dédié de sa fiche) ; 3 réussites = stabilisé, 3 échecs = mort. Un soin le remet debout.
 • Reprise en cours : si la campagne est reprise/importée, commence par un bref "Précédemment…" (2-3 phrases) pour resituer, puis relance sur un choix concret.
 • Prépa (mode atelier) : quand on te demande de bâtir, structure comme un module pro — accroche → factions & PNJ → 2-3 lieux clés → complications montantes → climax → récompenses, INSPIRÉ des grands canons d'aventure (sans copier de texte sous copyright), 100% réutilisable.`;
 
@@ -375,6 +385,19 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
           State.log({ kind: "event", text: `✨ ${h.name} gagne ${amt} XP (total ${h.xp})${canLv ? ` — peut passer niveau ${DND.levelForXp(h.xp)} !` : ""}` });
         });
         effects.push("✨ +" + amt + " XP");
+      }],
+      [/\[OR:\s*([^\]]+)\]/gi, (a) => {
+        const o = kv(a); const amt = parseInt(o.montant || o.amount || o.valeur, 10) || 0; if (!amt) return;
+        const cible = o.cible || o.target || "";
+        let targets;
+        if (!cible || /groupe|group|tous|all|équipe|equipe|party/i.test(cible)) targets = c.heroes;
+        else { const h = State.heroByName(cible); targets = h ? [h] : []; }
+        if (targets.length && (!cible || /groupe|group|tous|all|équipe|equipe|party/i.test(cible))) {
+          const share = Math.floor(amt / targets.length);
+          targets.forEach(h => { h.gold = (h.gold || 0) + share; });
+          State.log({ kind: "event", text: `💰 Le groupe trouve ${amt} po (${Math.floor(amt / targets.length)} po chacun).` });
+        } else targets.forEach(h => { h.gold = (h.gold || 0) + amt; State.log({ kind: "event", text: `💰 ${h.name} reçoit ${amt} po (total ${h.gold}).` }); });
+        effects.push("💰 +" + amt + " po");
       }],
       [/\[FAIT:\s*([^\]]+)\]/gi, (a) => { State.log({ kind: "event", text: a.trim() }); effects.push("⚡ fait"); }],
       [/\[MEMO:\s*([^\]]+)\]/gi, (a) => { State.remember(a.trim()); effects.push("🧠 canon"); }],

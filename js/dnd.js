@@ -78,6 +78,22 @@ const DND = {
   canLevelUp(hero) { return this.levelForXp(hero.xp || 0) > (hero.level || 1); },
   hpGainOnLevel(cls, conMod) { const hd = (this.CLASSES[cls] || { hd: 8 }).hd; return Math.max(1, Math.floor(hd / 2) + 1 + conMod); },
 
+  /* ---------- Emplacements de sorts (progression 5e) ---------- */
+  CASTER_TYPE: { Magicien: "full", Clerc: "full", Druide: "full", Barde: "full", Ensorceleur: "full", Paladin: "half", Rôdeur: "half", Occultiste: "pact" },
+  // Emplacements par niveau de perso → [niv1, niv2, … niv9]
+  FULL_SLOTS: [[], [2], [3], [4, 2], [4, 3], [4, 3, 2], [4, 3, 3], [4, 3, 3, 1], [4, 3, 3, 2], [4, 3, 3, 3, 1], [4, 3, 3, 3, 2], [4, 3, 3, 3, 2, 1], [4, 3, 3, 3, 2, 1], [4, 3, 3, 3, 2, 1, 1], [4, 3, 3, 3, 2, 1, 1], [4, 3, 3, 3, 2, 1, 1, 1], [4, 3, 3, 3, 2, 1, 1, 1], [4, 3, 3, 3, 2, 1, 1, 1, 1], [4, 3, 3, 3, 3, 1, 1, 1, 1], [4, 3, 3, 3, 3, 2, 1, 1, 1], [4, 3, 3, 3, 3, 2, 2, 1, 1]],
+  HALF_SLOTS: [[], [], [2], [3], [3], [4, 2], [4, 2], [4, 3], [4, 3], [4, 3, 2], [4, 3, 2], [4, 3, 3], [4, 3, 3], [4, 3, 3, 1], [4, 3, 3, 1], [4, 3, 3, 2], [4, 3, 3, 2], [4, 3, 3, 3, 1], [4, 3, 3, 3, 1], [4, 3, 3, 3, 2], [4, 3, 3, 3, 2]],
+  PACT_SLOTS: [null, { n: 1, lv: 1 }, { n: 2, lv: 1 }, { n: 2, lv: 2 }, { n: 2, lv: 2 }, { n: 2, lv: 3 }, { n: 2, lv: 3 }, { n: 2, lv: 4 }, { n: 2, lv: 4 }, { n: 2, lv: 5 }, { n: 2, lv: 5 }, { n: 3, lv: 5 }, { n: 3, lv: 5 }, { n: 3, lv: 5 }, { n: 3, lv: 5 }, { n: 3, lv: 5 }, { n: 3, lv: 5 }, { n: 4, lv: 5 }, { n: 4, lv: 5 }, { n: 4, lv: 5 }, { n: 4, lv: 5 }],
+  // Renvoie { "1": max, "2": max, … } (+ pact:{lv} si applicable)
+  slotsFor(cls, level) {
+    const t = this.CASTER_TYPE[cls]; const L = Math.max(1, Math.min(20, level || 1)); const out = {};
+    if (t === "full") (this.FULL_SLOTS[L] || []).forEach((n, i) => { if (n) out[i + 1] = n; });
+    else if (t === "half") (this.HALF_SLOTS[L] || []).forEach((n, i) => { if (n) out[i + 1] = n; });
+    else if (t === "pact") { const p = this.PACT_SLOTS[L]; if (p) { out[p.lv] = p.n; out.pact = p.lv; } }
+    return out;
+  },
+  isCaster(cls) { return !!this.CASTER_TYPE[cls]; },
+
   /* ---------- Helpers ---------- */
   mod(score) { return Math.floor(((score || 10) - 10) / 2); },
   modStr(score) { const m = this.mod(score); return (m >= 0 ? "+" : "") + m; },

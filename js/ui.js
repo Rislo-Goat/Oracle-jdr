@@ -527,6 +527,8 @@ const UI = {
           <input type="number" class="xp-in" value="${h.xp || 0}" onchange="UI.setHeroField('${id}','xp',this.value)" title="XP">
           ${DND.canLevelUp(h) ? `<button class="btn btn-primary btn-sm lvlup" onclick="UI.levelUp('${id}')">⬆️ Passer niveau ${DND.levelForXp(h.xp)}</button>` : ""}</div>
 
+        ${this.restBlock(h, id)}
+
         <h3 class="mini-h3">Sauvegardes maîtrisées</h3>
         <div class="sk-wrap">${saveChips}</div>
         <h3 class="mini-h3">Compétences maîtrisées</h3>
@@ -595,7 +597,90 @@ const UI = {
     State.save(); this.editHero(id);
     this.toast(mode === "array" ? "Tableau standard réparti (caracs de classe en priorité)" : "🎲 Caracs tirées au 4d6 garde 3", "ok");
   },
-  setHeroField(id, f, v) { const h = State.hero(id); if (!h) return; if (["hp", "maxHp", "armor", "xp"].includes(f)) v = parseInt(v, 10) || 0; else if (f === "speed") v = parseFloat(v) || 0; h[f] = v; State.save(); if (f === "avatar") this.editHero(id); this.renderHeader(); },
+  setHeroField(id, f, v) { const h = State.hero(id); if (!h) return; if (["hp", "maxHp", "armor", "xp", "gold"].includes(f)) v = parseInt(v, 10) || 0; else if (f === "speed") v = parseFloat(v) || 0; h[f] = v; State.save(); if (f === "avatar") this.editHero(id); this.renderHeader(); },
+
+  /* ---------- Repos, emplacements de sorts, jets de mort, or ---------- */
+  restBlock(h, id) {
+    const isCaster = DND.isCaster(h.cls);
+    const maxSlots = isCaster ? DND.slotsFor(h.cls, h.level) : {};
+    const hdMax = h.level; const hdLeft = hdMax - (h.hitDiceUsed || 0);
+    let slotsHtml = "";
+    if (isCaster) {
+      const levels = Object.keys(maxSlots).filter(k => k !== "pact").map(Number).sort((a, b) => a - b);
+      if (levels.length) slotsHtml = `<div class="qs-section-t">Emplacements de sorts${maxSlots.pact ? " · Pacte (niv. " + maxSlots.pact + ")" : ""}</div>
+        <div class="slot-wrap">${levels.map(lv => {
+          const max = maxSlots[lv]; const used = (h.slotsUsed && h.slotsUsed[lv]) || 0;
+          const pips = Array.from({ length: max }, (_, i) => `<button class="slot-pip ${i < used ? "used" : ""}" onclick="UI.setSlot('${id}',${lv},${i + 1})"></button>`).join("");
+          return `<div class="slot-row"><span class="slot-lv">Niv.${lv}</span>${pips}<span class="slot-n">${max - used}/${max}</span></div>`;
+        }).join("")}</div>`;
+    }
+    const downed = h.hp <= 0 ? `<div class="death-box">
+        <div class="qs-section-t">💀 Sauvegardes contre la mort</div>
+        <div class="death-row">Réussites ${"●".repeat(h.deathSaves.s)}${"○".repeat(3 - h.deathSaves.s)} · Échecs ${"✕".repeat(h.deathSaves.f)}${"○".repeat(3 - h.deathSaves.f)}</div>
+        <div class="two-inline"><button class="btn btn-primary btn-sm btn-block" onclick="UI.deathSave('${id}')">🎲 Jet contre la mort</button><button class="btn btn-ghost btn-sm" onclick="UI.resetDeath('${id}')">↺</button></div>
+      </div>` : "";
+    return `<h3 class="mini-h3">Repos & ressources</h3>
+      <div class="rest-row">
+        <button class="btn btn-ghost btn-sm" onclick="UI.restShort('${id}')">🌙 Repos court · dés de vie ${hdLeft}/${hdMax}</button>
+        <button class="btn btn-primary btn-sm" onclick="UI.restLong('${id}')">🛌 Repos long</button>
+      </div>
+      <label class="f" style="margin-top:11px">💰 Or (po)<input type="number" value="${h.gold || 0}" onchange="UI.setHeroField('${id}','gold',this.value)"></label>
+      ${slotsHtml}${downed}`;
+  },
+  setSlot(id, lv, n) { const h = State.hero(id); h.slotsUsed = h.slotsUsed || {}; const cur = h.slotsUsed[lv] || 0; const max = DND.slotsFor(h.cls, h.level)[lv] || 0; h.slotsUsed[lv] = Math.max(0, Math.min(max, cur === n ? n - 1 : n)); State.save(); this.editHero(id); },
+  restLong(id) {
+    const h = State.hero(id);
+    h.hp = h.maxHp; h.deathSaves = { s: 0, f: 0 }; h.slotsUsed = {}; h.hitDiceUsed = 0;
+    State.save(); State.log({ kind: "event", text: `🛌 ${h.name} termine un repos long : PV au max, emplacements et dés de vie récupérés.` });
+    this.toast("🛌 Repos long — tout récupéré", "ok"); this.editHero(id); this.renderHeader();
+  },
+  restShort(id) {
+    const h = State.hero(id);
+    if ((h.hitDiceUsed || 0) >= h.level) { this.toast("Plus de dés de vie (repos long nécessaire)", "warn"); return; }
+    const hd = (DND.CLASSES[h.cls] || { hd: 8 }).hd;
+    const heal = Math.max(1, Dice.rollDie(hd) + DND.mod(h.abilities.CON));
+    h.hp = Math.min(h.maxHp, h.hp + heal); h.hitDiceUsed = (h.hitDiceUsed || 0) + 1;
+    if (DND.CASTER_TYPE[h.cls] === "pact") h.slotsUsed = {}; // le Pacte récupère au repos court
+    State.save(); State.log({ kind: "event", text: `🌙 ${h.name} : repos court, dé de vie 1d${hd} → +${heal} PV (${h.hp}/${h.maxHp}).` });
+    this.toast(`🌙 +${heal} PV`, "ok"); this.editHero(id);
+  },
+  resetDeath(id) { const h = State.hero(id); h.deathSaves = { s: 0, f: 0 }; State.save(); this.editHero(id); },
+  deathSave(id) {
+    if (State.data.physicalDice) { this._deathId = id; this.showDeathRequest(id); }
+    else this._applyDeath(id, Dice.rollDie(20));
+  },
+  showDeathRequest(id) {
+    const host = document.createElement("div");
+    host.className = "dice-overlay"; host.id = "rollReq";
+    host.innerHTML = `<div class="dice-pop">
+      <div class="rr-label">💀 Sauvegarde contre la mort</div>
+      <div class="rr-dc">Réussite sur <b>10+</b> · 20 = tu reviens à toi · 1 = 2 échecs</div>
+      <div class="rr-hint">Lance ton <b>d20 physique</b> :</div>
+      <input type="number" id="rrFace" min="1" max="20" inputmode="numeric" placeholder="d20">
+      <button class="btn btn-primary btn-block" onclick="UI.submitDeath()">Valider</button>
+    </div>`;
+    document.body.appendChild(host);
+    setTimeout(() => { const i = document.getElementById("rrFace"); if (i) { i.focus(); i.onkeydown = e => { if (e.key === "Enter") UI.submitDeath(); }; } }, 30);
+  },
+  submitDeath() {
+    const face = parseInt(document.getElementById("rrFace").value, 10);
+    if (!face || face < 1 || face > 20) { this.toast("Entre le d20 (1-20)", "warn"); return; }
+    const h = document.getElementById("rollReq"); if (h) h.remove();
+    this._applyDeath(this._deathId, face);
+  },
+  _applyDeath(id, face) {
+    const h = State.hero(id); if (!h) return;
+    let msg;
+    if (face === 20) { h.hp = 1; h.deathSaves = { s: 0, f: 0 }; msg = `${h.name} revient à lui avec 1 PV ! (20 naturel)`; }
+    else if (face === 1) { h.deathSaves.f = Math.min(3, h.deathSaves.f + 2); msg = `${h.name} : 1 naturel — 2 échecs !`; }
+    else if (face >= 10) { h.deathSaves.s = Math.min(3, h.deathSaves.s + 1); msg = `${h.name} : réussite (${face}).`; }
+    else { h.deathSaves.f = Math.min(3, h.deathSaves.f + 1); msg = `${h.name} : échec (${face}).`; }
+    if (h.deathSaves.s >= 3) msg += " Stabilisé.";
+    if (h.deathSaves.f >= 3) msg += " 💀 Mort.";
+    State.save(); State.log({ kind: "event", text: "💀 " + msg });
+    this.toast(msg, face >= 10 && face !== 1 ? "ok" : "warn");
+    this.editHero(id); this.renderHeader();
+  },
   setHeroStat(id, k, v) { const h = State.hero(id); h.stats[k] = parseInt(v, 10) || 0; State.save(); },
   setHeroGear(id, v) { const h = State.hero(id); h.gear = v.split("\n").map(s => s.trim()).filter(Boolean); State.save(); },
   setHeroCond(id, v) { const h = State.hero(id); h.conditions = v.split(",").map(s => s.trim()).filter(Boolean); State.save(); },
