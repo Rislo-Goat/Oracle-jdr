@@ -17,6 +17,8 @@ const App = {
     } else {
       document.getElementById("app").classList.remove("hidden");
       UI.go("play");
+      const c = State.current();
+      if (c && c.kickoff) UI.runKickoff();
     }
   },
 
@@ -57,10 +59,31 @@ const App = {
         <label class="f">Pitch / idée de départ (optionnel)<textarea id="obPitch" rows="3" placeholder="De quoi ça parle ? Où commence l'aventure ?">${UI.esc(this.ob.draft.pitch)}</textarea></label>
         <div class="ob-nav"><button class="btn btn-ghost" onclick="App.obBack()">←</button><button class="btn btn-primary" onclick="App.obSaveMeta()">Suivant →</button></div>
       </div>`,
-      // 3 — héros
+      // 3 — comment démarrer
+      () => `<div class="ob-panel">
+        <h2>Comment démarrer ?</h2>
+        <p class="ob-sub">L'Oracle s'adapte : pars de rien, laisse-le tout inventer, ou reprends une partie déjà commencée.</p>
+        <div class="start-grid">
+          <button class="start-opt ${this.ob.draft.origin === "scratch" ? "sel" : ""}" onclick="App.obStart('scratch')">
+            <span class="start-ico">🛠️</span><span class="start-t">Je gère, de zéro</span><span class="start-d">Tu poses ton histoire, l'Oracle t'assiste en temps réel.</span></button>
+          <button class="start-opt ${this.ob.draft.origin === "generated" ? "sel" : ""}" onclick="App.obStart('generated')">
+            <span class="start-ico">✨</span><span class="start-t">L'Oracle bâtit la campagne</span><span class="start-d">Il invente accroche, enjeu, quêtes, PNJ et 1ʳᵉ scène — inspiré des grands modules.</span></button>
+          <button class="start-opt ${this.ob.draft.origin === "resume" ? "sel" : ""}" onclick="App.obStart('resume')">
+            <span class="start-ico">🔄</span><span class="start-t">Reprendre une partie en cours</span><span class="start-d">Colle ce que tu as (histoire, module en ligne, notes d'un autre MJ) — il reprend le fil.</span></button>
+        </div>
+        <div class="ob-nav"><button class="btn btn-ghost" onclick="App.obBack()">←</button><button class="btn btn-primary" onclick="App.obNext()">Suivant →</button></div>
+      </div>`,
+      // 4 (conditionnel) — reprise : matière existante
+      ...(this.ob.draft.origin === "resume" ? [() => `<div class="ob-panel">
+        <h2>Reprendre le fil 🔄</h2>
+        <p class="ob-sub">Colle TOUT ce que tu as sur la campagne en cours : le résumé de l'histoire jusqu'ici, les personnages, où vous en êtes, un module trouvé en ligne, les notes d'un autre MJ… Plus tu en donnes, plus l'Oracle reprend avec pertinence. C'est du canon pour lui.</p>
+        <textarea id="obResume" rows="10" placeholder="Ex : « On joue une campagne d'heroic fantasy. Le groupe (Kael le roublard, Mira la clerc…) a libéré un village d'un culte, puis suivi une piste vers la cité de Valmyr. Ils viennent de découvrir que le maire est possédé… »">${UI.esc(this.ob.draft.seed)}</textarea>
+        <div class="ob-nav"><button class="btn btn-ghost" onclick="App.obBack()">←</button><button class="btn btn-primary" onclick="App.obSaveResume()">Suivant →</button></div>
+      </div>`] : []),
+      // dernier — héros
       () => `<div class="ob-panel">
         <h2>Les héros</h2>
-        <p class="ob-sub">Ajoute les personnages de tes joueurs (tu pourras compléter les fiches après). Tu peux aussi passer et les créer plus tard.</p>
+        <p class="ob-sub">${this.ob.draft.origin === "resume" ? "Ajoute les personnages déjà en jeu (l'Oracle complétera le reste depuis ce que tu as collé)." : "Ajoute les personnages de tes joueurs (tu compléteras les fiches après)."} Tu peux aussi passer et les créer plus tard.</p>
         <div id="obHeroes" class="ob-heroes">${this.ob.heroes.map((h, i) => `<div class="ob-hero-row">
           <input placeholder="Nom du perso" value="${UI.esc(h.name)}" onchange="App.obHeroField(${i},'name',this.value)">
           <input placeholder="Joueur" value="${UI.esc(h.player)}" onchange="App.obHeroField(${i},'player',this.value)">
@@ -68,7 +91,7 @@ const App = {
           <button class="wdel" onclick="App.obHeroDel(${i})">✕</button>
         </div>`).join("")}</div>
         <button class="btn btn-ghost btn-sm" onclick="App.obHeroAdd()">＋ Ajouter un héros</button>
-        <div class="ob-nav"><button class="btn btn-ghost" onclick="App.obBack()">←</button><button class="btn btn-primary" onclick="App.obFinish()">Lancer la campagne 🔮</button></div>
+        <div class="ob-nav"><button class="btn btn-ghost" onclick="App.obBack()">←</button><button class="btn btn-primary" onclick="App.obFinish()">${this.ob.draft.origin === "scratch" ? "Lancer la campagne 🔮" : "Laisser l'Oracle lancer 🔮"}</button></div>
       </div>`,
     ];
   },
@@ -94,6 +117,8 @@ const App = {
     this.ob.draft.pitch = document.getElementById("obPitch").value.trim();
     this.obNext();
   },
+  obStart(mode) { this.ob.draft.origin = mode; this.renderOb(); },
+  obSaveResume() { this.ob.draft.seed = document.getElementById("obResume").value.trim(); this.obNext(); },
   obHeroAdd() { this.ob.heroes.push({ name: "", player: "", cls: "Guerrier" }); this.renderOb(); },
   obHeroDel(i) { this.ob.heroes.splice(i, 1); this.renderOb(); },
   obHeroField(i, f, v) { this.ob.heroes[i][f] = v; },
@@ -107,12 +132,19 @@ const App = {
     // enregistre aussi la liste des joueurs
     const players = [...new Set(this.ob.heroes.map(h => h.player.trim()).filter(Boolean))];
     if (players.length) State.data.players = players;
+    // consigne de lancement automatique selon le mode de démarrage
+    if (c.origin === "generated") {
+      c.kickoff = "Bâtis cette campagne de A à Z, inspirée des grands modules d'aventure (sans copier de texte sous copyright). Pose : l'accroche d'ouverture, l'enjeu central, 2 à 3 quêtes, 2 à 3 PNJ clés, le lieu de départ et la toute première scène. Enregistre tout via tes directives ([QUETE:], [PNJ:], [LIEU:], [SCENE:], [MEMO:], [AMBIANCE:]), puis lance la partie sur un choix concret proposé aux joueurs.";
+    } else if (c.origin === "resume") {
+      c.kickoff = "Je reprends une campagne DÉJÀ en cours (tout est dans les NOTES/canon que je t'ai fournis). Analyse-la et structure-la dans l'app : enregistre les PNJ, lieux, quêtes en cours et faits importants via tes directives, pose la scène actuelle ([SCENE:]) et l'ambiance ([AMBIANCE:]). Fais ensuite un court « Précédemment… » (2-3 phrases) pour resituer la table, puis relance immédiatement la partie de façon captivante sur un choix concret. Si une info vraiment cruciale manque, pose au plus 1-2 questions.";
+    }
     State.save();
     document.getElementById("onboarding").classList.add("hidden");
     document.getElementById("app").classList.remove("hidden");
     State.applyTheme();
     UI.go("play");
-    UI.toast("Campagne créée — que l'aventure commence ! 🔮", "ok");
+    if (c.kickoff) UI.runKickoff();
+    else UI.toast("Campagne créée — que l'aventure commence ! 🔮", "ok");
   },
 };
 

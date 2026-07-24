@@ -163,6 +163,17 @@ const UI = {
     this.renderHeader();
   },
 
+  // Lance automatiquement la consigne de génération/reprise (une seule fois).
+  runKickoff() {
+    const c = State.current();
+    if (!c || !c.kickoff) return;
+    const prompt = c.kickoff;
+    c.kickoff = ""; State.save();
+    this.go("play");
+    this.toast(c.origin === "resume" ? "🔄 L'Oracle reprend le fil…" : "✨ L'Oracle bâtit ta campagne…");
+    this.runOracle(prompt, "play", "");
+  },
+
   log_thinking(mode) {
     const feed = document.getElementById(mode === "play" ? "feed" : "oracleFeed");
     if (!feed) return;
@@ -605,7 +616,7 @@ const UI = {
 
       <div class="card">
         <h3>🔮 Oracle IA</h3>
-        <div class="hint">L'Oracle mène la narration. Le plus simple : ton backend Railway (aucune clé à coller). Sinon une clé gratuite (Groq / Gemini).</div>
+        <div class="hint">💸 <b>100 % gratuit possible</b> : <b>Groq</b> et <b>Google Gemini</b> offrent des modèles gratuits, largement suffisants pour l'Oracle. Le plus simple : mets une de ces clés sur ton backend Railway (aucune clé à coller ici). Sinon, colle une clé gratuite directement ci-dessous.</div>
         <label class="f">Fournisseur<select id="aiProv" onchange="UI.setAIProvider(this.value)">${Object.entries(DATA.AI_PROVIDERS).map(([k, p]) => `<option value="${k}" ${k === ai.provider ? "selected" : ""}>${p.name}</option>`).join("")}</select></label>
         ${ai.provider === "backend" ? `
           <label class="f">URL du backend<input value="${this.esc(be.url)}" onchange="UI.setBackend('url',this.value)" placeholder="https://…up.railway.app"></label>
@@ -617,6 +628,15 @@ const UI = {
           ${prov.url ? `<a class="link" href="${prov.url}" target="_blank">↗ Obtenir une clé</a>` : ""}
           <div class="hint">Ta clé reste sur ton téléphone.</div>
         `}
+      </div>
+
+      <div class="card">
+        <h3>🎭 Ton rôle (MJ + joueur)</h3>
+        <div class="hint">Tu es le MJ mais tu incarnes aussi un perso ? Indique-le : l'Oracle t'assistera pour toute la table ET donnera des moments forts à ton personnage, sans jamais jouer à ta place.</div>
+        <label class="f">Mon personnage<select onchange="UI.setMjHero(this.value)">
+          <option value="">— Je suis MJ uniquement —</option>
+          ${c.heroes.map(h => `<option value="${h.id}" ${h.id === c.mjHeroId ? "selected" : ""}>${h.avatar} ${this.esc(h.name)}</option>`).join("")}
+        </select></label>
       </div>
 
       <div class="card">
@@ -662,6 +682,7 @@ const UI = {
     } catch (e) { this.toast("❌ Injoignable : " + e.message, "warn"); }
   },
   savePlayers() { State.data.players = document.getElementById("playersInput").value.split("\n").map(s => s.trim()).filter(Boolean); State.save(); this.toast("Joueurs enregistrés", "ok"); },
+  setMjHero(id) { const c = State.current(); c.mjHeroId = id; State.save(); this.toast(id ? "L'Oracle sait que tu joues aussi 🎭" : "MJ uniquement", "ok"); },
   switchCamp(id) { State.switchCampaign(id); this.go("play"); },
   delCamp(id) { if (confirm("Supprimer cette campagne définitivement ?")) { State.deleteCampaign(id); this.renderTable(); this.renderHeader(); } },
   newCampaignFlow() { App.startOnboarding(true); },

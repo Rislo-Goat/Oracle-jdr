@@ -15,6 +15,21 @@
 
 C'est le pendant « table de JDR » de **LifeQuest** : même philosophie (PWA installable, zéro compte, coach/oracle IA qui adapte le fond **et** la forme en direct), poussée pour le rôle-play.
 
+## 🚀 Trois façons de démarrer
+
+À la création d'une campagne, tu choisis :
+1. **🛠️ De zéro, je gère** — tu poses ton histoire, l'Oracle t'assiste en temps réel.
+2. **✨ L'Oracle bâtit la campagne** — il invente accroche, enjeu, 2-3 quêtes, PNJ clés, lieu de départ et 1ʳᵉ scène (inspiré des grands modules d'aventure, sans copier de texte protégé), et enregistre tout dans l'app.
+3. **🔄 Reprendre une partie en cours** — tu colles ce que tu as (résumé de l'histoire, un **module trouvé en ligne**, les **notes d'un autre MJ**), et l'Oracle **reprend le fil** : il structure la campagne, fait un « Précédemment… » et relance la partie sans perdre la cohérence.
+
+## 🎭 MJ **et** joueur (double rôle)
+
+Tu es le MJ mais tu incarnes aussi un personnage (logique quand vous n'êtes que 4 + toi) ? Indique-le dans **Table → Ton rôle**. L'Oracle devient alors ton co-MJ pour toute la table **et** veille à donner des moments forts à ton perso — sans jamais décider à ta place.
+
+## 🧠 Un agent Oracle expert (et gratuit)
+
+L'Oracle n'est pas un chatbot générique : c'est un **Maître du Jeu D&D 5e d'élite**, avec une vraie méthode de MJ pro (agentivité « oui, et… », enjeux télégraphiés, règle des trois indices, fail-forward, équilibrage, spotlight équitable, factions vivantes). Et il peut tourner **100 % gratuitement** via **Groq** ou **Google Gemini** (modèles gratuits).
+
 ## ✨ Ce que fait Oracle
 
 - 🔥 **Partie en temps réel** — le hub de séance. Une **chronique vivante** (actions des joueurs, réponses de l'Oracle, répliques de PNJ, jets de dés, événements) + un **composer** où tu tapes en direct ce que fait la table. L'Oracle répond en co-MJ.

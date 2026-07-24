@@ -25,6 +25,9 @@ const State = {
       session: 1,
       scene: { title: "", mood: "" },
       combat: { active: false, round: 0, turn: 0, order: [] },  // suivi d'initiative
+      mjHeroId: "",            // le perso que TOI (le MJ) joues aussi (double rôle)
+      origin: "scratch",       // scratch | generated | resume
+      kickoff: "",             // 1ère consigne à jouer automatiquement (génération/reprise)
       heroes: [],              // les PJ (jusqu'à ~6)
       npcs: [],                // PNJ
       places: [],              // lieux
@@ -145,6 +148,9 @@ const State = {
   migrate() {
     (this.data.campaigns || []).forEach(c => {
       if (!c.combat) c.combat = { active: false, round: 0, turn: 0, order: [] };
+      if (c.mjHeroId == null) c.mjHeroId = "";
+      if (!c.origin) c.origin = "scratch";
+      if (c.kickoff == null) c.kickoff = "";
       (c.heroes || []).forEach(h => {
         if (!h.abilities || typeof h.abilities !== "object") h.abilities = { FOR: 10, DEX: 10, CON: 10, INT: 10, SAG: 10, CHA: 10 };
         if (!h.skillProfs) h.skillProfs = [];
