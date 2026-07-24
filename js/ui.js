@@ -289,7 +289,7 @@ const UI = {
 
   // Intro d'ouverture rejouable : présente l'histoire, les héros et le lieu de départ.
   introduce() {
-    const prompt = "Fais l'INTRODUCTION d'ouverture de la partie, comme au tout début d'une campagne de JDR : (1) plante le décor et le pitch de l'aventure de façon immersive et cinématographique ; (2) présente brièvement CHAQUE héros par son nom ; (3) décris le lieu de départ et son ambiance ; (4) explique la situation initiale et ce qui amène le groupe ici ; (5) termine sur une accroche ou un premier choix concret pour lancer l'action. Reste fidèle à l'univers et au ton, et pose la scène via tes directives.";
+    const prompt = "Fais l'OUVERTURE de la partie de façon 100% IMMERSIVE et RP (diégétique) — surtout PAS comme un narrateur hors-fiction. Présente la situation par une SOURCE DU MONDE adaptée à l'univers : une voix ou un briefing (commandant, IA de bord, transmission radio, hologramme), un signal de détresse, un journal de bord, OU une scène sensorielle forte que les héros vivent en direct. Intègre naturellement, dans la fiction, qui sont les héros (nomme-les comme de vraies personnes présentes), où ils se trouvent, et ce qui se passe / ce qui les amène ici. Termine par un élément de la fiction qui appelle une réaction (un événement, un danger, une réplique d'un PNJ qui s'adresse à eux) — JAMAIS par une question méta type « que faites-vous ? ». Pose la scène via tes directives.";
     this.runOracle(prompt, "play", "");
   },
 
