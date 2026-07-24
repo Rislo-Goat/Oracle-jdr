@@ -1,5 +1,5 @@
 /* Oracle — service worker : cache réseau-d'abord pour la coquille PWA. */
-const CACHE = "oracle-v3";
+const CACHE = "oracle-v4";
 const ASSETS = [
   "./", "index.html", "css/app.css",
   "js/data.js", "js/dnd.js", "js/state.js", "js/dice.js", "js/oracle.js", "js/ui.js", "js/app.js",

@@ -67,8 +67,15 @@ const UI = {
     const feed = chron.length ? chron.map(e => this.chronItem(e)).join("") :
       `<div class="empty">La partie n'a pas commencé. Pose une scène, ou écris ce que font les joueurs ci-dessous — l'Oracle prend le relais. 🔮</div>`;
 
-    const heroesChips = c.heroes.map(h =>
-      `<button class="mini-hero" onclick="UI.quickHero('${h.id}')">${h.avatar} ${this.esc(h.name.split(" ")[0])} <span class="mini-hp">${h.hp}/${h.maxHp}</span></button>`).join("");
+    const partyTokens = c.heroes.map(h => {
+      const pct = Math.round((h.hp / Math.max(1, h.maxHp)) * 100);
+      return `<div class="party-tok ${h.hp <= 0 ? "downed" : ""}">
+        <div class="party-tok-top"><span class="party-ava">${h.avatar}</span><span class="party-name">${this.esc(h.name.split(" ")[0])}</span></div>
+        <div class="party-hpbar"><div class="party-hpfill ${pct < 35 ? "low" : ""}" style="width:${pct}%"></div></div>
+        <div class="party-hptxt"><span>${h.hp}/${h.maxHp} PV</span>${h.conditions && h.conditions.length ? `<span>⚠️${h.conditions.length}</span>` : `<span>🛡️${h.armor}</span>`}</div>
+        <button class="party-tap" onclick="UI.openHeroSheet('${h.id}')" aria-label="${this.esc(h.name)}"></button>
+      </div>`;
+    }).join("");
 
     el.innerHTML = `
       ${this.setupBanner()}
@@ -76,7 +83,7 @@ const UI = {
         <div class="scene-title">${c.scene && c.scene.title ? "📍 " + this.esc(c.scene.title) : "Scène libre"}</div>
         ${c.scene && c.scene.mood ? `<div class="scene-mood">${this.esc(c.scene.mood)}</div>` : ""}
       </div>
-      ${c.heroes.length ? `<div class="mini-heroes">${heroesChips}</div>` : ""}
+      ${c.heroes.length ? `<div class="party-bar">${partyTokens}</div>` : ""}
       <div class="feed" id="feed">${feed}</div>
       <div class="composer">
         <div class="chips">
@@ -146,6 +153,94 @@ const UI = {
   },
 
   async quickHero(id) { this.go("heroes"); setTimeout(() => this.editHero(id), 50); },
+
+  /* Feuille rapide : PV, états et jets en un tap, sans quitter la partie. */
+  openHeroSheet(id) {
+    const c = State.current();
+    const h = State.hero(id); if (!h) return;
+    const is5e = c.system === "dnd5e";
+    const pct = Math.round((h.hp / Math.max(1, h.maxHp)) * 100);
+    const conds = (is5e ? DND.CONDITIONS : ["Blessé", "Empoisonné", "Étourdi", "À terre", "Effrayé", "Inconscient"])
+      .map(cd => `<button class="qs-cond ${(h.conditions || []).includes(cd) ? "on" : ""}" onclick="UI.qsCond('${id}','${this.esc(cd)}')">${this.esc(cd)}</button>`).join("");
+    const rolls = is5e ? `
+      <div class="qs-section-t">Jets rapides</div>
+      <div class="qs-rolls">
+        <button class="qs-roll" onclick="UI.qsRoll('${id}','init')">Initiative</button>
+        <button class="qs-roll" onclick="UI.qsRoll('${id}','skill','Perception')">Perception</button>
+        <button class="qs-roll" onclick="UI.qsRoll('${id}','save','DEX')">Sauv. DEX</button>
+        <button class="qs-roll" onclick="UI.qsRoll('${id}','save','CON')">Sauv. CON</button>
+        <button class="qs-roll" onclick="UI.qsRoll('${id}','save','SAG')">Sauv. SAG</button>
+      </div>` : "";
+    const host = document.createElement("div");
+    host.className = "sheet-overlay"; host.id = "sheetHost";
+    host.onclick = (e) => { if (e.target === host) UI.closeHeroSheet(); };
+    host.innerHTML = `<div class="quick-sheet">
+      <div class="qs-grip"></div>
+      <div class="qs-head"><span class="qs-ava">${h.avatar}</span><span class="qs-name">${this.esc(h.name)}</span>
+        <button class="qs-close" onclick="UI.closeHeroSheet()">✕</button></div>
+      <div class="qs-hp">
+        <div class="qs-hprow">
+          <button class="hp-step dmg" onclick="UI.qsHp('${id}',-1)">−</button>
+          <div class="hp-bar"><div class="hp-fill ${pct < 35 ? "low" : ""}" style="width:${pct}%"></div><span class="hp-txt" id="qsHpTxt">${h.hp} / ${h.maxHp} PV</span></div>
+          <button class="hp-step" onclick="UI.qsHp('${id}',1)">＋</button>
+        </div>
+        <div class="qs-dmg-grid">
+          <button class="qs-dmg d" onclick="UI.qsHp('${id}',-5)">−5</button>
+          <button class="qs-dmg d" onclick="UI.qsHp('${id}',-10)">−10</button>
+          <button class="qs-dmg h" onclick="UI.qsHp('${id}',5)">+5</button>
+          <button class="qs-dmg h" onclick="UI.qsHp('${id}','full')">Repos</button>
+        </div>
+        <div class="qs-custom"><input type="number" id="qsCustom" placeholder="montant"><button class="btn btn-danger btn-sm" onclick="UI.qsHpCustom('${id}',-1)">Dégâts</button><button class="btn btn-ghost btn-sm" onclick="UI.qsHpCustom('${id}',1)">Soin</button></div>
+      </div>
+      <div class="qs-section-t">États</div>
+      <div class="qs-conds">${conds}</div>
+      ${rolls}
+      <button class="btn btn-ghost btn-block" onclick="UI.closeHeroSheet();UI.quickHero('${id}')">📜 Fiche complète</button>
+    </div>`;
+    document.body.appendChild(host);
+  },
+  closeHeroSheet() { const h = document.getElementById("sheetHost"); if (h) h.remove(); },
+  _refreshSheet(id) {
+    const h = State.hero(id); if (!h) return;
+    const txt = document.getElementById("qsHpTxt");
+    const pct = Math.round((h.hp / Math.max(1, h.maxHp)) * 100);
+    if (txt) { txt.textContent = `${h.hp} / ${h.maxHp} PV`;
+      const fill = txt.previousElementSibling; if (fill) { fill.style.width = pct + "%"; fill.classList.toggle("low", pct < 35); } }
+    if (this.view === "play") this.renderPlay();
+    else if (this.view === "heroes") this.renderHeroes();
+  },
+  qsHp(id, delta) {
+    const h = State.hero(id); if (!h) return;
+    const before = h.hp;
+    if (delta === "full") h.hp = h.maxHp;
+    else h.hp = Math.max(0, Math.min(h.maxHp, h.hp + delta));
+    State.save();
+    const d = h.hp - before;
+    if (d) State.log({ kind: "event", text: `${h.name} : ${d > 0 ? "+" : ""}${d} PV (→ ${h.hp}/${h.maxHp})` });
+    this._refreshSheet(id);
+  },
+  qsHpCustom(id, sign) {
+    const v = parseInt(document.getElementById("qsCustom").value, 10); if (!v) return;
+    document.getElementById("qsCustom").value = "";
+    this.qsHp(id, sign * Math.abs(v));
+  },
+  qsCond(id, cd) {
+    const h = State.hero(id); h.conditions = h.conditions || [];
+    const i = h.conditions.indexOf(cd);
+    if (i < 0) h.conditions.push(cd); else h.conditions.splice(i, 1);
+    State.save();
+    this.closeHeroSheet(); this.openHeroSheet(id);
+    if (this.view === "play") this.renderPlay(); else if (this.view === "heroes") this.renderHeroes();
+  },
+  qsRoll(id, kind, key) {
+    const h = State.hero(id); const c = State.current();
+    let res;
+    if (kind === "init") { res = Dice.initiative(h); res.outcome = null; Dice.show(res, h.name + " · Initiative"); State.log({ kind: "dice", text: `${h.name} Initiative : ${res.detail} = ${res.total}` }); return; }
+    const dc = (DATA.DICE_SYSTEMS[c.system] || {}).defaultDC;
+    res = Dice.check5e(h, kind, key, dc);
+    Dice.show(res, res.label);
+    State.log({ kind: "dice", text: `${res.label} : ${res.detail} = ${res.total} vs DD ${dc} → ${res.outcome}` });
+  },
 
   // Envoie à l'Oracle, applique directives, log la réponse, gère les jets.
   async runOracle(text, mode, who) {
@@ -229,7 +324,11 @@ const UI = {
           </div>
           <div class="hero-armor">🛡️ ${h.armor}${is5e ? `<span class="prof-b">maît. +${DND.profBonus(h.level)}</span>` : ""}</div>
         </div>
-        <div class="hp-bar"><div class="hp-fill ${hpPct < 30 ? "low" : ""}" style="width:${hpPct}%"></div><span class="hp-txt">${h.hp} / ${h.maxHp} PV</span></div>
+        <div class="hp-row" onclick="event.stopPropagation()">
+          <button class="hp-step dmg" onclick="UI.qsHp('${h.id}',-1)">−</button>
+          <div class="hp-bar"><div class="hp-fill ${hpPct < 30 ? "low" : ""}" style="width:${hpPct}%"></div><span class="hp-txt">${h.hp} / ${h.maxHp} PV</span></div>
+          <button class="hp-step" onclick="UI.qsHp('${h.id}',1)">＋</button>
+        </div>
         ${stats ? `<div class="stat-row">${stats}</div>` : ""}
         ${h.conditions && h.conditions.length ? `<div class="cond-row">${h.conditions.map(x => `<span class="cond">${this.esc(x)}</span>`).join("")}</div>` : ""}
         ${h.gear && h.gear.length ? `<div class="gear-row">🎒 ${h.gear.map(x => this.esc(x)).join(", ")}</div>` : ""}

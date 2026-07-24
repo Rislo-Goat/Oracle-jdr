@@ -8,7 +8,7 @@ const DATA = {
 
   /* ---------- Genres / univers proposés (l'app s'adapte à tout) ---------- */
   GENRES: {
-    fantasy:    { name: "Fantasy / Médiéval-fantastique", ico: "⚔️", theme: "royal",
+    fantasy:    { name: "Fantasy / Médiéval-fantastique", ico: "⚔️", theme: "default",
                   pitch: "Épées, magie, donjons et dragons. Un monde de royaumes, de guildes et de créatures anciennes.",
                   attrs: ["Force","Dextérité","Constitution","Intelligence","Sagesse","Charisme"],
                   system: "d20" },
@@ -75,8 +75,8 @@ const DATA = {
 
   /* ---------- Thèmes d'ambiance (l'Oracle les change en direct) ---------- */
   THEMES: {
-    default: { name: "Nuit violette", ico: "🌌" },
-    royal:   { name: "Royaume doré", ico: "👑" },
+    default: { name: "Grimoire (cuir & or)", ico: "📜" },
+    royal:   { name: "Royaume violet", ico: "👑" },
     ember:   { name: "Braises & sang", ico: "🔥" },
     neon:    { name: "Néon cyber", ico: "💠" },
     matrix:  { name: "Vert spectral", ico: "🕯️" },
