@@ -341,7 +341,10 @@ const UI = {
 
   // Intro d'ouverture rejouable : présente l'histoire, les héros et le lieu de départ.
   introduce() {
-    const prompt = "Fais l'OUVERTURE de la partie de façon 100% IMMERSIVE et RP (diégétique) — surtout PAS comme un narrateur hors-fiction. Présente la situation par une SOURCE DU MONDE adaptée à l'univers : une voix ou un briefing (commandant, IA de bord, transmission radio, hologramme), un signal de détresse, un journal de bord, OU une scène sensorielle forte que les héros vivent en direct. Intègre naturellement, dans la fiction, qui sont les héros (nomme-les comme de vraies personnes présentes), où ils se trouvent, et ce qui se passe / ce qui les amène ici. Termine par un élément de la fiction qui appelle une réaction (un événement, un danger, une réplique d'un PNJ qui s'adresse à eux) — JAMAIS par une question méta type « que faites-vous ? ». Pose la scène via tes directives.";
+    const prompt = "Fais l'INTRODUCTION de la partie en DEUX temps, claire et précise, pour que joueurs et MJ sachent exactement où on en est.\n\n" +
+      "1) « 📖 CONTEXTE » (hors-fiction, pour situer la table) : en 4-6 phrases SIMPLES et CONCRÈTES, explique — QUI est le groupe (nomme CHAQUE héros et son rôle) ; OÙ ils se trouvent précisément ; COMMENT ils sont arrivés là ; la SITUATION actuelle (ce qui se passe maintenant) ; et leur OBJECTIF / l'enjeu immédiat. Pas de flou : on doit comprendre la mission et le point de départ.\n\n" +
+      "2) « 🎬 OUVERTURE » (en RP, 100% immersif et diégétique) : après une ligne de séparation, plonge les héros dans la scène via une SOURCE DU MONDE (une voix / l'IA de bord, une transmission, un journal) ou une scène sensorielle forte, fidèle à l'univers et au ton. Termine par un élément de la fiction qui appelle une réaction (un événement, un danger, un PNJ qui s'adresse à eux) — jamais par une question méta type « que faites-vous ? ».\n\n" +
+      "Mets bien les deux titres « 📖 CONTEXTE » et « 🎬 OUVERTURE ». Pose la scène et les éléments utiles via tes directives.";
     this.runOracle(prompt, "play", "");
   },
 
