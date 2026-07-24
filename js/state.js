@@ -107,6 +107,7 @@ const State = {
     if (this.data.physicalDice === undefined) this.data.physicalDice = true; // vrais dés par défaut
     if (this.data.autoRead === undefined) this.data.autoRead = false; // lecture vocale auto
     if (this.data.voiceName === undefined) this.data.voiceName = ""; // voix choisie (auto par défaut)
+    if (this.data.readDialogueOnly === undefined) this.data.readDialogueOnly = true; // ne lire que les dialogues « »
     this.migrate();
     return this.data;
   },

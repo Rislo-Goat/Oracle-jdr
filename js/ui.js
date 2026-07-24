@@ -184,9 +184,32 @@ const UI = {
       ${others.length ? `<optgroup label="Autres langues">${others.slice(0, 40).map(opt).join("")}</optgroup>` : ""}
     </select></label>`;
   },
+  // Extrait uniquement les répliques entre guillemets (« », " ", " ") — ce qui est PARLÉ.
+  dialogueOf(text) {
+    const t = String(text || "");
+    const re = /«\s*([^»]+?)\s*»|"([^"]+?)"|“([^”]+?)”/g;
+    const spans = []; let m;
+    while ((m = re.exec(t))) spans.push((m[1] || m[2] || m[3] || "").trim());
+    return spans.filter(Boolean).join(". ");
+  },
   speakId(id) {
     const c = State.current(); const e = (c.chronicle || []).find(x => x.id === id); if (!e) return;
+    if (e.kind === "pnj") { this.speak((e.who ? e.who + ". " : "") + e.text, "pnj"); return; }
+    if (State.data.readDialogueOnly !== false) {
+      const d = this.dialogueOf(e.text);
+      if (d) { this.speak(d, "pnj"); return; }     // uniquement le dialogue, voix de personnage
+      this.speak(e.text, "oracle"); return;        // pas de dialogue → on lit tout (secours)
+    }
     this.speak((e.who ? e.who + ". " : "") + e.text, e.kind);
+  },
+  // Lecture d'une réponse d'Oracle (auto ou manuelle) selon le réglage dialogues.
+  speakNarration(text) {
+    if (State.data.readDialogueOnly !== false) {
+      const d = this.dialogueOf(text);
+      if (d) this.speak(d, "pnj");                 // ne lit QUE les répliques « »
+      return;                                       // pas de dialogue → rien (le MJ lit la description)
+    }
+    this.speak(text, "oracle");
   },
   stopSpeak() { if ("speechSynthesis" in window) window.speechSynthesis.cancel(); },
 
@@ -320,7 +343,7 @@ const UI = {
     const fx = effects.length ? effects.join(" · ") : "";
     if (mode === "play") State.log({ kind: "oracle", text: clean, fx });
     else { State.current().chat.push({ kind: "oracle", text: clean, t: Date.now() }); State.save(); }
-    if (mode === "play" && State.data.autoRead && clean) this.speak(clean, "oracle");
+    if (mode === "play" && State.data.autoRead && clean) this.speakNarration(clean);
     if (btn) { btn.disabled = false; btn.textContent = mode === "play" ? "▶" : "▶"; }
     // exécute les jets demandés par l'Oracle
     if (rolls.length || damage.length) this.resolveAll(rolls, damage);
@@ -1101,6 +1124,7 @@ const UI = {
         <h3>🔊 Voix</h3>
         <div class="hint">Lecture à voix haute (synthèse de ton téléphone, gratuite). Un bouton 🔊 apparaît sur chaque narration de l'Oracle et chaque réplique de PNJ dans la Partie.</div>
         ${this.voicePicker(d)}
+        <label class="chk chk-row"><input type="checkbox" ${d.readDialogueOnly !== false ? "checked" : ""} onchange="UI.setDialogueOnly(this.checked)"> <span><b>Lire seulement les dialogues « »</b> — la voix ne dit que les répliques des personnages/IA ; toi, tu lis la description à voix haute.</span></label>
         <label class="chk chk-row"><input type="checkbox" ${d.autoRead ? "checked" : ""} onchange="UI.setAutoRead(this.checked)"> <span><b>Lire automatiquement</b> les réponses de l'Oracle à voix haute.</span></label>
         <button class="btn btn-ghost btn-sm" onclick="UI.speak('Ceci est un test de la voix. La partie peut commencer.','oracle')">🔊 Tester la voix</button>
         <div class="hint" style="margin-top:10px">💡 Pour une voix bien plus naturelle sur iPhone : Réglages → Accessibilité → <b>Contenu énoncé</b> → Voix → Français → télécharge une voix <b>« Premium »</b>. Elle apparaîtra ensuite dans la liste ci-dessus.</div>
@@ -1179,6 +1203,7 @@ const UI = {
   setMjHero(id) { const c = State.current(); c.mjHeroId = id; State.save(); this.toast(id ? "L'Oracle sait que tu joues aussi 🎭" : "MJ uniquement", "ok"); },
   setPhysicalDice(v) { State.data.physicalDice = v; State.save(); this.toast(v ? "🎲 Tu lances tes vrais dés" : "L'app lance les dés", "ok"); },
   setAutoRead(v) { State.data.autoRead = v; State.save(); if (!v) this.stopSpeak(); this.toast(v ? "🔊 Lecture auto activée" : "Lecture auto coupée", "ok"); },
+  setDialogueOnly(v) { State.data.readDialogueOnly = v; State.save(); this.toast(v ? "🗣️ Voix : dialogues « » uniquement" : "Voix : tout le texte", "ok"); },
   async testAiKey() {
     const ai = State.data.ai; const model = ai.model || (DATA.AI_PROVIDERS[ai.provider] || {}).model;
     this.toast("Test en cours…");
