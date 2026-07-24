@@ -255,7 +255,7 @@ const UI = {
     const prompt = who ? `[${who}] ${text}` : text;
     let raw = await Oracle.ask(prompt, mode);
     // jets demandés
-    const { text: t1, rolls } = Oracle.extractRolls(raw);
+    const { text: t1, rolls, damage } = Oracle.extractRolls(raw);
     const { clean, effects } = Oracle.applyDirectives(t1);
     this.remove_thinking();
     const fx = effects.length ? effects.join(" · ") : "";
@@ -263,7 +263,7 @@ const UI = {
     else { State.current().chat.push({ kind: "oracle", text: clean, t: Date.now() }); State.save(); }
     if (btn) { btn.disabled = false; btn.textContent = mode === "play" ? "▶" : "▶"; }
     // exécute les jets demandés par l'Oracle
-    if (rolls.length) this.resolveRolls(rolls);
+    if (rolls.length || damage.length) this.resolveAll(rolls, damage);
     if (mode === "play") this.renderPlay(); else this.renderOracle();
     this.renderHeader();
   },
@@ -289,14 +289,18 @@ const UI = {
   },
   remove_thinking() { const t = document.getElementById("thinkingBubble"); if (t) t.remove(); },
 
-  /* ---------- Résolution des jets demandés par l'Oracle ---------- */
-  resolveRolls(rolls) {
+  /* ---------- Résolution des jets + dégâts demandés par l'Oracle ---------- */
+  resolveAll(rolls, damage) {
     const c = State.current();
     if (State.data.physicalDice) {
-      this._rollQueue = rolls.map(r => this.buildRollReq(c, r));
+      this._rollQueue = [
+        ...rolls.map(r => this.buildRollReq(c, r)),
+        ...(damage || []).map(dg => this.buildDamageReq(c, dg)),
+      ];
       this.nextPhysicalRoll();
     } else {
       rolls.forEach(r => this.autoRoll(c, r));
+      (damage || []).forEach(dg => this.autoDamage(c, dg));
     }
   },
   buildRollReq(c, r) {
@@ -306,9 +310,20 @@ const UI = {
       const kind = r.skill ? "skill" : r.save ? "save" : r.attack ? "attack" : "ability";
       const key = r.skill || r.save || r.attack || r.ability;
       const b = DND.buildRoll(h, kind, key, r.bonus || 0);
-      return { label: (h ? h.name + " · " : "") + b.label, mod: b.mod, dc, adv: r.adv, dis: r.dis };
+      return { kind: "check", label: (h ? h.name + " · " : "") + b.label, mod: b.mod, dc, adv: r.adv, dis: r.dis };
     }
-    return { label: (r.who ? r.who + " · " : "") + (r.skill || r.save || "Jet"), mod: 0, dc, adv: r.adv, dis: r.dis };
+    return { kind: "check", label: (r.who ? r.who + " · " : "") + (r.skill || r.save || "Jet"), mod: 0, dc, adv: r.adv, dis: r.dis };
+  },
+  buildDamageReq(c, dg) {
+    const h = State.heroByName(dg.target);
+    return { kind: "damage", label: dg.label + (dg.type ? " (" + dg.type + ")" : ""), formula: dg.formula, targetHeroId: h ? h.id : null, targetName: dg.target };
+  },
+  autoDamage(c, dg) {
+    const r = Dice.roll(dg.formula);
+    const h = State.heroByName(dg.target);
+    Dice.show(r, dg.label + " · dégâts");
+    if (h) { h.hp = Math.max(0, h.hp - r.total); State.save(); State.log({ kind: "event", text: `${h.name} subit ${r.total} dégâts (→ ${h.hp}/${h.maxHp})` }); }
+    else State.log({ kind: "dice", text: `Dégâts ${dg.label} : ${dg.formula} = ${r.total}${dg.target ? " (sur " + dg.target + ")" : ""}` });
   },
   autoRoll(c, r) {
     const h = State.heroByName(r.who);
@@ -329,7 +344,35 @@ const UI = {
   nextPhysicalRoll() {
     if (!this._rollQueue || !this._rollQueue.length) { if (this.view === "play") this.renderPlay(); return; }
     this._curRoll = this._rollQueue.shift();
-    this.showRollRequest(this._curRoll);
+    if (this._curRoll.kind === "damage") this.showDamageRequest(this._curRoll);
+    else this.showRollRequest(this._curRoll);
+  },
+  showDamageRequest(req) {
+    const host = document.createElement("div");
+    host.className = "dice-overlay"; host.id = "rollReq";
+    host.innerHTML = `<div class="dice-pop">
+      <div class="rr-label">💥 ${this.esc(req.label)} — dégâts</div>
+      <div class="rr-dc">Lance <b>${this.esc(req.formula)}</b>${req.targetName ? " sur " + this.esc(req.targetName) : ""}</div>
+      <div class="rr-hint">Lance tes <b>dés de dégâts physiques</b> et entre le <b>total</b> :</div>
+      <input type="number" id="rrFace" min="0" inputmode="numeric" placeholder="total">
+      <button class="btn btn-primary btn-block" onclick="UI.submitDamage()">Valider</button>
+    </div>`;
+    document.body.appendChild(host);
+    setTimeout(() => { const i = document.getElementById("rrFace"); if (i) { i.focus(); i.onkeydown = e => { if (e.key === "Enter") UI.submitDamage(); }; } }, 30);
+  },
+  submitDamage() {
+    const total = parseInt(document.getElementById("rrFace").value, 10);
+    if (isNaN(total) || total < 0) { this.toast("Entre le total des dégâts", "warn"); return; }
+    const req = this._curRoll;
+    const h = req.targetHeroId ? State.hero(req.targetHeroId) : null;
+    let line = `${req.label} : ${req.formula} = ${total} dégâts`;
+    if (h) { h.hp = Math.max(0, h.hp - total); State.save(); line = `${h.name} subit ${total} dégâts (→ ${h.hp}/${h.maxHp})`; State.log({ kind: "event", text: line }); }
+    else State.log({ kind: "dice", text: line + (req.targetName ? " (sur " + req.targetName + ")" : "") });
+    const pop = document.querySelector("#rollReq .dice-pop");
+    if (pop) pop.innerHTML = `<div class="dice-pop-face">${total}</div>
+      <div class="dice-pop-formula">${this.esc(req.label)} · ${this.esc(req.formula)}</div>
+      <div class="dice-pop-result ko">${this.esc(line)}</div>
+      <button class="btn btn-primary btn-block" onclick="UI.closeRollRequest()">Continuer</button>`;
   },
   showRollRequest(req) {
     const modTxt = req.mod ? (req.mod >= 0 ? "+" + req.mod : "" + req.mod) : "+0";

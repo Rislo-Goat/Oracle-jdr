@@ -120,6 +120,7 @@ Tu peux modifier la partie ET l'ambiance visuelle en direct en ajoutant, À LA F
 • [LIEU: nom=Fort de Braise; desc=citadelle en ruine sur la falaise]  → lieu.
 • [BESTIAIRE: nom=Goule; pv=15; menace=moyenne; trait=paralyse au toucher]  → créature/ennemi.
 • [JET: cible=Kael; comp=Discrétion; diff=15]  → DEMANDE un test de COMPÉTENCE : l'app calcule le modificateur du héros (carac + maîtrise) et lance 1d20. Variantes 5e : sauvegarde=DEX (jet de sauvegarde), carac=FOR (test de carac brut), attaque=Épée; bonus=5 (jet d'attaque vs CA=diff). Tu peux ajouter avantage=1 ou desavantage=1. Ne donne JAMAIS toi-même le résultat chiffré — laisse l'app lancer avec les vraies stats.
+• [DEGATS: cible=Goule; formule=1d8+3; source=Lame vibro; type=tranchant]  → DEMANDE un jet de DÉGÂTS : le joueur lance ses dés de dégâts (carte dédiée) et l'app applique les PV. Émets-le APRÈS une attaque réussie, au lieu d'appliquer [PV] toi-même. Utilise le bon dé de l'arme/sort (dague 1d4, épée courte/rapière 1d6, épée longue/lame 1d8, arme lourde 1d10/1d12 ; ajoute le modificateur pertinent). Si la cible est un héros (dégâts subis), mets son nom en cible : l'app réduit ses PV. Ne chiffre jamais les dégâts toi-même — laisse le joueur lancer.
 • [COMBAT: start]  démarre le suivi d'initiative (l'app tire l'init des héros). [COMBAT: stop] le termine. [INIT: nom=Goule; valeur=14; pv=15]  ajoute un ennemi dans l'ordre d'initiative. [TOUR]  passe au combattant suivant.
 • [FAIT: Le pont s'effondre derrière eux]  → inscrit un événement marquant dans la chronique.
 • [MEMO: L'héritier porte une marque de naissance en forme de croissant]  → ajoute un fait durable au CANON de la campagne (à retenir pour toujours). Max 2 par réponse.
@@ -386,7 +387,7 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
 
   // Extrait les demandes de jet [JET: …] pour que l'app les lance.
   extractRolls(text) {
-    const rolls = [];
+    const rolls = [], damage = [];
     text = text.replace(/\[JET:\s*([^\]]+)\]/gi, (m, a) => {
       const o = {}; a.split(";").forEach(p => { const i = p.indexOf("="); if (i > 0) o[p.slice(0, i).trim().toLowerCase()] = p.slice(i + 1).trim(); });
       rolls.push({
@@ -400,7 +401,18 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
       });
       return "";
     });
-    return { text: text.replace(/\n{3,}/g, "\n\n").trim(), rolls };
+    // Dégâts : le joueur lance ses dés de dégâts (carte dédiée)
+    text = text.replace(/\[(?:D[EÉ]G[AÂ]TS|DAMAGE):\s*([^\]]+)\]/gi, (m, a) => {
+      const o = {}; a.split(";").forEach(p => { const i = p.indexOf("="); if (i > 0) o[p.slice(0, i).trim().toLowerCase()] = p.slice(i + 1).trim(); });
+      damage.push({
+        target: o.cible || o.target || "",
+        formula: (o.formule || o.formula || "1d6").toLowerCase().replace(/\s+/g, ""),
+        label: o.source || o.arme || o.sort || "Dégâts",
+        type: o.type || "",
+      });
+      return "";
+    });
+    return { text: text.replace(/\n{3,}/g, "\n\n").trim(), rolls, damage };
   },
 
   /* ---------- Diagnostic ---------- */
