@@ -162,6 +162,7 @@ const State = {
     if (cl && (!h.saveProfs || !h.saveProfs.length)) h.saveProfs = cl.saves.slice();
     h._hpTouched = false;
     this.applyClassDefaults(h);
+    h.armor = DND.computeAC(h); // CA exacte selon armure / défense sans armure
     return h;
   },
 

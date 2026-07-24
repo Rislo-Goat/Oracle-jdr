@@ -84,7 +84,7 @@ const DND = {
   BUILDS: {
     "Barbare":     { abilities: { FOR: 15, CON: 14, DEX: 13, SAG: 12, CHA: 10, INT: 8 }, skills: ["Athlétisme", "Intimidation"], gear: ["Hache à deux mains", "2 hachettes", "Sac d'explorateur"], feats: "Rage, Défense sans armure (CA = 10 + DEX + CON)", spells: "" },
     "Barde":       { abilities: { CHA: 15, DEX: 14, CON: 13, INT: 12, SAG: 10, FOR: 8 }, skills: ["Persuasion", "Représentation", "Tromperie"], gear: ["Rapière", "Instrument", "Armure de cuir", "Dague"], feats: "Inspiration bardique (d6)", spells: "Tours : Illusion mineure, Moquerie vicieuse. Niv.1 : Soin des blessures, Charme-personne, Image silencieuse" },
-    "Clerc":       { abilities: { SAG: 15, CON: 14, FOR: 13, CHA: 12, DEX: 10, INT: 8 }, skills: ["Médecine", "Perspicacité"], gear: ["Masse d'armes", "Bouclier", "Cotte de mailles", "Symbole sacré"], feats: "Canalisation d'énergie divine", spells: "Tours : Flamme sacrée, Résistance. Niv.1 : Soin des blessures, Bénédiction, Mot de guérison" },
+    "Clerc":       { abilities: { SAG: 15, CON: 14, FOR: 13, CHA: 12, DEX: 10, INT: 8 }, skills: ["Médecine", "Perspicacité"], gear: ["Masse d'armes", "Bouclier", "Chemise de mailles (intermédiaire)", "Symbole sacré"], feats: "Canalisation d'énergie divine", spells: "Tours : Flamme sacrée, Résistance. Niv.1 : Soin des blessures, Bénédiction, Mot de guérison" },
     "Druide":      { abilities: { SAG: 15, CON: 14, DEX: 13, INT: 12, CHA: 10, FOR: 8 }, skills: ["Nature", "Perception"], gear: ["Bâton", "Armure de cuir", "Serpe", "Sacoche à composantes"], feats: "Druidique, Forme sauvage (niv.2)", spells: "Tours : Gourdin magique, Druidisme. Niv.1 : Soin des blessures, Enchevêtrement, Baies nourricières" },
     "Ensorceleur": { abilities: { CHA: 15, CON: 14, DEX: 13, INT: 12, SAG: 10, FOR: 8 }, skills: ["Arcanes", "Tromperie"], gear: ["Dague", "Focaliseur arcanique", "Sac d'explorateur"], feats: "Origine magique", spells: "Tours : Trait de feu, Prestidigitation, Lumière. Niv.1 : Projectile magique, Bouclier" },
     "Guerrier":    { abilities: { FOR: 15, CON: 14, DEX: 13, SAG: 12, INT: 10, CHA: 8 }, skills: ["Athlétisme", "Perception"], gear: ["Épée longue", "Bouclier", "Cotte de mailles", "Arbalète légère"], feats: "Style de combat, Second souffle (1d10 + niveau)", spells: "" },
@@ -137,6 +137,25 @@ const DND = {
     return m;
   },
   abilityMod(hero, ab) { return this.mod((hero.abilities || {})[ab]); },
+
+  // Classe d'Armure de départ selon la classe (armure/défense sans armure 5e)
+  computeAC(h) {
+    const dex = this.mod(h.abilities.DEX), con = this.mod(h.abilities.CON), wis = this.mod(h.abilities.SAG);
+    const cap2 = Math.min(2, dex);
+    switch (h.cls) {
+      case "Barbare": return 10 + dex + con;      // Défense sans armure
+      case "Moine": return 10 + dex + wis;        // Défense sans armure
+      case "Guerrier":
+      case "Paladin": return 18;                  // cotte de mailles (16) + bouclier (2)
+      case "Clerc": return 13 + cap2 + 2;         // chemise de mailles (interm.) + bouclier
+      case "Rôdeur":
+      case "Roublard":
+      case "Barde":
+      case "Druide":
+      case "Occultiste": return 11 + dex;         // armure de cuir
+      default: return 10 + dex;                    // Magicien, Ensorceleur (sans armure)
+    }
+  },
 
   // DV / PV de base indicatif à la création (max au niveau 1)
   baseHp(cls, conMod, level = 1) {
