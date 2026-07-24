@@ -30,7 +30,7 @@ const Oracle = {
         const prof = "+" + DND.profBonus(h.level || 1);
         const profSk = (h.skillProfs || []).length ? " | maîtrises : " + h.skillProfs.join(", ") : "";
         const saves = (h.saveProfs || []).length ? " | sauv. maîtrisées : " + h.saveProfs.join(",") : "";
-        return `• ${h.name}${h.player ? " (joué par " + h.player + ")" : ""} — ${h.race} ${cn(h.cls)}${cn(h.cls) !== h.cls ? " [" + h.cls + " 5e]" : ""} niv.${h.level}${h.concept ? " (" + h.concept + ")" : ""} | PV ${h.hp}/${h.maxHp}, CA ${h.armor}, init +${DND.abilityMod(h, "DEX")}, maîtrise ${prof} | ${ab}${profSk}${saves}${h.gear && h.gear.length ? " | sac : " + h.gear.join(", ") : ""}${h.conditions && h.conditions.length ? " | ÉTATS : " + h.conditions.join(", ") : ""}${h.feats ? " | atouts : " + h.feats : ""}`;
+        return `• ${h.name}${h.player ? " (joué par " + h.player + ")" : ""} — ${h.race} ${cn(h.cls)}${cn(h.cls) !== h.cls ? " [" + h.cls + " 5e]" : ""} niv.${h.level}${h.concept ? " (" + h.concept + ")" : ""} | PV ${h.hp}/${h.maxHp}, CA ${h.armor}, init +${DND.abilityMod(h, "DEX")}, maîtrise ${prof} | ${ab}${profSk}${saves}${h.gear && h.gear.length ? " | sac : " + h.gear.join(", ") : ""}${h.conditions && h.conditions.length ? " | ÉTATS : " + h.conditions.join(", ") : ""}${h.feats ? " | atouts : " + h.feats : ""}${h.spells ? " | sorts : " + h.spells : ""}`;
       }
       const st = Object.entries(h.stats || {}).filter(([, v]) => v !== 0 && v !== "")
         .map(([k, v]) => `${k} ${v >= 0 ? "+" : ""}${v}`).join(", ");

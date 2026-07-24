@@ -320,10 +320,30 @@ const UI = {
   },
   autoDamage(c, dg) {
     const r = Dice.roll(dg.formula);
-    const h = State.heroByName(dg.target);
     Dice.show(r, dg.label + " · dégâts");
-    if (h) { h.hp = Math.max(0, h.hp - r.total); State.save(); State.log({ kind: "event", text: `${h.name} subit ${r.total} dégâts (→ ${h.hp}/${h.maxHp})` }); }
-    else State.log({ kind: "dice", text: `Dégâts ${dg.label} : ${dg.formula} = ${r.total}${dg.target ? " (sur " + dg.target + ")" : ""}` });
+    this._applyDmg(r.total, null, dg.target, dg.label + " " + dg.formula);
+  },
+  // Applique des dégâts : à un héros (PV + entrée de combat) OU à un ennemi du suivi d'initiative.
+  _applyDmg(total, heroId, targetName, note) {
+    const c = State.current();
+    const h = heroId ? State.hero(heroId) : (targetName ? State.heroByName(targetName) : null);
+    let line;
+    if (h) {
+      h.hp = Math.max(0, h.hp - total);
+      if (c.combat) { const e = c.combat.order.find(o => o.id === h.id || o.name === h.name); if (e && e.hp != null) e.hp = Math.max(0, e.hp - total); }
+      line = `${h.name} subit ${total} dégâts (→ ${h.hp}/${h.maxHp})${h.hp <= 0 ? " — à terre !" : ""}`;
+      State.log({ kind: "event", text: line });
+    } else if (targetName && c.combat) {
+      const e = c.combat.order.find(o => o.name.toLowerCase() === (targetName || "").toLowerCase());
+      if (e && e.hp != null) { e.hp = Math.max(0, e.hp - total); line = `${targetName} subit ${total} dégâts (→ ${e.hp} PV)${e.hp <= 0 ? " — vaincu !" : ""}`; }
+      else line = `Dégâts sur ${targetName} : ${total}`;
+      State.log({ kind: "event", text: line });
+    } else {
+      line = `Dégâts : ${note || total}`;
+      State.log({ kind: "dice", text: line });
+    }
+    State.save();
+    return line;
   },
   autoRoll(c, r) {
     const h = State.heroByName(r.who);
@@ -364,10 +384,7 @@ const UI = {
     const total = parseInt(document.getElementById("rrFace").value, 10);
     if (isNaN(total) || total < 0) { this.toast("Entre le total des dégâts", "warn"); return; }
     const req = this._curRoll;
-    const h = req.targetHeroId ? State.hero(req.targetHeroId) : null;
-    let line = `${req.label} : ${req.formula} = ${total} dégâts`;
-    if (h) { h.hp = Math.max(0, h.hp - total); State.save(); line = `${h.name} subit ${total} dégâts (→ ${h.hp}/${h.maxHp})`; State.log({ kind: "event", text: line }); }
-    else State.log({ kind: "dice", text: line + (req.targetName ? " (sur " + req.targetName + ")" : "") });
+    const line = this._applyDmg(total, req.targetHeroId, req.targetName, req.label + " " + req.formula + " = " + total);
     const pop = document.querySelector("#rollReq .dice-pop");
     if (pop) pop.innerHTML = `<div class="dice-pop-face">${total}</div>
       <div class="dice-pop-formula">${this.esc(req.label)} · ${this.esc(req.formula)}</div>
