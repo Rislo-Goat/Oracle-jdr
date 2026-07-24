@@ -167,8 +167,10 @@ const App = {
     // sauvegarde les inputs héros visibles
     const c = State.createCampaign(this.ob.draft);
     this.ob.heroes.filter(h => h.name.trim()).forEach(h => {
-      State.addHero({ name: h.name.trim(), player: h.player.trim(), cls: h.cls || "Guerrier",
+      const hero = State.addHero({ name: h.name.trim(), player: h.player.trim(), cls: h.cls || "Guerrier",
         avatar: DATA.AVATARS[Math.floor(Math.random() * DATA.AVATARS.length)] });
+      // Optimisation automatique : caracs, compétences, CA, PV, équipement selon classe/race.
+      State.applyBuild(hero);
     });
     // enregistre aussi la liste des joueurs
     const players = [...new Set(this.ob.heroes.map(h => h.player.trim()).filter(Boolean))];

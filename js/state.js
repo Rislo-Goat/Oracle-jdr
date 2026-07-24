@@ -97,12 +97,24 @@ const State = {
       this.data = JSON.parse(localStorage.getItem(this.KEY));
     } catch { this.data = null; }
     if (!this.data || !this.data.campaigns) {
-      this.data = { campaigns: [], currentId: null, ai: { provider: "backend", key: "", model: "" },
+      this.data = { campaigns: [], currentId: null, ai: { provider: "groq", key: "", model: "" },
                     backend: { url: location.origin, token: "" }, players: [], onboarded: false };
     }
     // Auto-détection du backend : par défaut la même origine que la PWA.
     if (!this.data.backend) this.data.backend = { url: location.origin, token: "" };
-    if (!this.data.ai) this.data.ai = { provider: "backend", key: "", model: "" };
+    if (!this.data.ai) this.data.ai = { provider: "groq", key: "", model: "" };
+    // Auto-réparation : un ancien réglage "backend" sans serveur configuré tombait
+    // toujours hors-ligne. On repasse sur Groq (gratuit, marche depuis le navigateur).
+    if (this.data.ai.provider === "backend" && !(this.data.backend && this.data.backend.token)) {
+      this.data.ai.provider = "groq";
+      if (!this.data.ai.model) this.data.ai.model = "llama-3.3-70b-versatile";
+    }
+    // Modèles Groq périmés (retirés par Groq) → bascule sur le modèle courant, sinon
+    // l'appel renvoie une erreur HTTP 400 et l'app tombe hors-ligne « IA indisponible ».
+    if (this.data.ai.provider === "groq") {
+      const dead = /llama-3\.1-70b|llama3-70b|mixtral|llama-3\.1-8b-instant$|gemma-7b/i;
+      if (!this.data.ai.model || dead.test(this.data.ai.model)) this.data.ai.model = "llama-3.3-70b-versatile";
+    }
     if (!this.data.players) this.data.players = [];
     if (this.data.physicalDice === undefined) this.data.physicalDice = true; // vrais dés par défaut
     if (this.data.autoRead === undefined) this.data.autoRead = false; // lecture vocale auto
@@ -202,6 +214,15 @@ const State = {
         // ancien champ "abilities" servait de texte capacités → migré vers feats
         if (typeof h.feats !== "string") h.feats = "";
       });
+      // Auto-réparation : un héros D&D resté « à plat » (toutes caracs à 10, aucune
+      // compétence) est optimisé automatiquement selon sa classe/race. Corrige les
+      // fiches importées ou créées avant l'auto-build (CA 10, PV de base, etc.).
+      if ((c.system || "dnd5e") === "dnd5e") {
+        (c.heroes || []).forEach(h => {
+          const flat = DND.ABILITY_ORDER.every(a => (h.abilities[a] || 10) === 10) && !(h.skillProfs || []).length;
+          if (flat && DND.BUILDS[h.cls]) this.applyBuild(h);
+        });
+      }
     });
   },
   removeHero(id) {
