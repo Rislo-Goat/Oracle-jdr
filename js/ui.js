@@ -71,6 +71,7 @@ const UI = {
       `<button class="mini-hero" onclick="UI.quickHero('${h.id}')">${h.avatar} ${this.esc(h.name.split(" ")[0])} <span class="mini-hp">${h.hp}/${h.maxHp}</span></button>`).join("");
 
     el.innerHTML = `
+      ${this.setupBanner()}
       <div class="scene-banner ${c.scene && c.scene.mood ? "" : "muted-banner"}">
         <div class="scene-title">${c.scene && c.scene.title ? "📍 " + this.esc(c.scene.title) : "Scène libre"}</div>
         ${c.scene && c.scene.mood ? `<div class="scene-mood">${this.esc(c.scene.mood)}</div>` : ""}
@@ -109,6 +110,26 @@ const UI = {
     if (e.kind === "oracle") return `<div class="c-oracle"><div class="c-oracle-head">🔮 Oracle</div>${this.md(e.text)}${e.fx ? `<div class="c-fx">${e.fx}</div>` : ""}</div>`;
     return `<div class="c-note">${this.md(e.text)}</div>`;
   },
+
+  // Bandeau d'activation de l'Oracle : s'affiche tant que l'IA n'a pas répondu
+  // en ligne (aucune clé posée / dernier appel hors-ligne). Guide vers Table.
+  setupBanner() {
+    if (this.setupDismissed) return "";
+    const ai = State.data.ai;
+    const offline = Oracle.lastStatus && Oracle.lastStatus.mode === "offline";
+    const online = Oracle.lastStatus && Oracle.lastStatus.mode === "ai";
+    const noKey = ai.provider !== "backend" && !ai.key;
+    if (online) return "";
+    if (!offline && !noKey) return "";
+    return `<div class="setup-banner">
+      <div class="setup-txt">🔮 <b>Active l'Oracle gratuitement</b><span>Clé Groq ou Gemini, sans carte bancaire — 2 min.</span></div>
+      <div class="setup-actions">
+        <button class="btn btn-primary btn-sm" onclick="UI.go('table')">Configurer</button>
+        <button class="setup-x" onclick="UI.dismissSetup()">✕</button>
+      </div>
+    </div>`;
+  },
+  dismissSetup() { this.setupDismissed = true; this.renderPlay(); },
 
   compose(text) { const i = document.getElementById("playInput"); if (i) { i.value = text; this.autogrow(i); i.focus(); } },
   autogrow(el) { el.style.height = "auto"; el.style.height = Math.min(120, el.scrollHeight) + "px"; },

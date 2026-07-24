@@ -118,6 +118,12 @@ textarea { resize:none; line-height:1.4; }
 .btn:disabled { opacity:.5; pointer-events:none; }
 
 /* ============ PARTIE — scene + feed ============ */
+.setup-banner { display:flex; align-items:center; gap:10px; margin:12px 14px 0; padding:11px 13px; border-radius:13px; background:linear-gradient(135deg, color-mix(in srgb, var(--accent) 30%, var(--card)), var(--card)); border:1px solid var(--accent); }
+.setup-txt { flex:1; font-size:13px; font-weight:700; line-height:1.3; }
+.setup-txt span { display:block; font-size:11px; font-weight:500; color:var(--muted); margin-top:2px; }
+.setup-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.setup-x { color:var(--muted); font-size:15px; padding:4px 6px; }
+
 .scene-banner { margin:12px 14px 8px; padding:13px 15px; border-radius:14px;
   background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, var(--card)), var(--card));
   border:1px solid var(--border); }
