@@ -234,10 +234,15 @@ const UI = {
   },
   qsRoll(id, kind, key) {
     const h = State.hero(id); const c = State.current();
-    let res;
-    if (kind === "init") { res = Dice.initiative(h); res.outcome = null; Dice.show(res, h.name + " · Initiative"); State.log({ kind: "dice", text: `${h.name} Initiative : ${res.detail} = ${res.total}` }); return; }
+    this.closeHeroSheet();
+    if (State.data.physicalDice) {
+      if (kind === "init") { this._rollQueue = [{ label: h.name + " · Initiative", mod: DND.abilityMod(h, "DEX"), dc: 0 }]; }
+      else { const b = DND.buildRoll(h, kind, key); this._rollQueue = [{ label: h.name + " · " + b.label, mod: b.mod, dc: (DATA.DICE_SYSTEMS[c.system] || {}).defaultDC }]; }
+      this.nextPhysicalRoll(); return;
+    }
+    if (kind === "init") { const res = Dice.initiative(h); Dice.show(res, h.name + " · Initiative"); State.log({ kind: "dice", text: `${h.name} Initiative : ${res.detail} = ${res.total}` }); return; }
     const dc = (DATA.DICE_SYSTEMS[c.system] || {}).defaultDC;
-    res = Dice.check5e(h, kind, key, dc);
+    const res = Dice.check5e(h, kind, key, dc);
     Dice.show(res, res.label);
     State.log({ kind: "dice", text: `${res.label} : ${res.detail} = ${res.total} vs DD ${dc} → ${res.outcome}` });
   },
@@ -258,23 +263,7 @@ const UI = {
     else { State.current().chat.push({ kind: "oracle", text: clean, t: Date.now() }); State.save(); }
     if (btn) { btn.disabled = false; btn.textContent = mode === "play" ? "▶" : "▶"; }
     // exécute les jets demandés par l'Oracle
-    for (const r of rolls) {
-      const c = State.current();
-      const h = State.heroByName(r.who);
-      const dc = r.dc || (DATA.DICE_SYSTEMS[c.system] || {}).defaultDC;
-      if (c.system === "dnd5e" && h && (r.skill || r.save || r.ability || r.attack)) {
-        const kind = r.skill ? "skill" : r.save ? "save" : r.attack ? "attack" : "ability";
-        const key = r.skill || r.save || r.attack || r.ability;
-        const res = Dice.check5e(h, kind, key, dc, { bonus: r.bonus, adv: r.adv, dis: r.dis });
-        Dice.show(res, res.label);
-        State.log({ kind: "dice", text: `${res.label} : ${res.detail} = ${res.total} vs DD ${dc} → ${res.outcome}` });
-      } else {
-        const formula = r.formula || (DATA.DICE_SYSTEMS[c.system] || {}).formula || "1d20";
-        const res = Dice.check(formula, dc, c.system);
-        Dice.show(res, (r.who ? r.who + " · " : "") + (r.skill || r.save || "Jet"));
-        State.log({ kind: "dice", text: `${r.who || ""} ${r.skill || r.save || ""} : ${res.detail} = ${res.total} → ${res.outcome}` });
-      }
-    }
+    if (rolls.length) this.resolveRolls(rolls);
     if (mode === "play") this.renderPlay(); else this.renderOracle();
     this.renderHeader();
   },
@@ -299,6 +288,92 @@ const UI = {
     feed.appendChild(d); feed.scrollTop = feed.scrollHeight;
   },
   remove_thinking() { const t = document.getElementById("thinkingBubble"); if (t) t.remove(); },
+
+  /* ---------- Résolution des jets demandés par l'Oracle ---------- */
+  resolveRolls(rolls) {
+    const c = State.current();
+    if (State.data.physicalDice) {
+      this._rollQueue = rolls.map(r => this.buildRollReq(c, r));
+      this.nextPhysicalRoll();
+    } else {
+      rolls.forEach(r => this.autoRoll(c, r));
+    }
+  },
+  buildRollReq(c, r) {
+    const h = State.heroByName(r.who);
+    const dc = r.dc || (DATA.DICE_SYSTEMS[c.system] || {}).defaultDC;
+    if (c.system === "dnd5e" && h && (r.skill || r.save || r.ability || r.attack)) {
+      const kind = r.skill ? "skill" : r.save ? "save" : r.attack ? "attack" : "ability";
+      const key = r.skill || r.save || r.attack || r.ability;
+      const b = DND.buildRoll(h, kind, key, r.bonus || 0);
+      return { label: (h ? h.name + " · " : "") + b.label, mod: b.mod, dc, adv: r.adv, dis: r.dis };
+    }
+    return { label: (r.who ? r.who + " · " : "") + (r.skill || r.save || "Jet"), mod: 0, dc, adv: r.adv, dis: r.dis };
+  },
+  autoRoll(c, r) {
+    const h = State.heroByName(r.who);
+    const dc = r.dc || (DATA.DICE_SYSTEMS[c.system] || {}).defaultDC;
+    if (c.system === "dnd5e" && h && (r.skill || r.save || r.ability || r.attack)) {
+      const kind = r.skill ? "skill" : r.save ? "save" : r.attack ? "attack" : "ability";
+      const key = r.skill || r.save || r.attack || r.ability;
+      const res = Dice.check5e(h, kind, key, dc, { bonus: r.bonus, adv: r.adv, dis: r.dis });
+      Dice.show(res, res.label);
+      State.log({ kind: "dice", text: `${res.label} : ${res.detail} = ${res.total} vs DD ${dc} → ${res.outcome}` });
+    } else {
+      const formula = r.formula || (DATA.DICE_SYSTEMS[c.system] || {}).formula || "1d20";
+      const res = Dice.check(formula, dc, c.system);
+      Dice.show(res, (r.who ? r.who + " · " : "") + (r.skill || r.save || "Jet"));
+      State.log({ kind: "dice", text: `${r.who || ""} ${r.skill || r.save || ""} : ${res.detail} = ${res.total} → ${res.outcome}` });
+    }
+  },
+  nextPhysicalRoll() {
+    if (!this._rollQueue || !this._rollQueue.length) { if (this.view === "play") this.renderPlay(); return; }
+    this._curRoll = this._rollQueue.shift();
+    this.showRollRequest(this._curRoll);
+  },
+  showRollRequest(req) {
+    const modTxt = req.mod ? (req.mod >= 0 ? "+" + req.mod : "" + req.mod) : "+0";
+    const advNote = req.adv ? " · avantage (lance 2d20, garde le meilleur)" : req.dis ? " · désavantage (lance 2d20, garde le pire)" : "";
+    const host = document.createElement("div");
+    host.className = "dice-overlay"; host.id = "rollReq";
+    host.innerHTML = `<div class="dice-pop">
+      <div class="rr-label">🎲 ${this.esc(req.label)}</div>
+      <div class="rr-dc">DD ${req.dc} · modificateur <b>${modTxt}</b>${advNote}</div>
+      <div class="rr-hint">Lance ton <b>d20 physique</b> et entre le chiffre du dé :</div>
+      <input type="number" id="rrFace" min="1" max="20" inputmode="numeric" placeholder="d20" autofocus>
+      <div class="rr-total" id="rrTotal"></div>
+      <button class="btn btn-primary btn-block" id="rrValid" onclick="UI.submitPhysicalRoll()">Valider</button>
+    </div>`;
+    document.body.appendChild(host);
+    setTimeout(() => { const i = document.getElementById("rrFace"); if (i) { i.focus(); i.oninput = () => UI.previewRollTotal(); i.onkeydown = e => { if (e.key === "Enter") UI.submitPhysicalRoll(); }; } }, 30);
+  },
+  previewRollTotal() {
+    const face = parseInt(document.getElementById("rrFace").value, 10);
+    const el = document.getElementById("rrTotal"); if (!el) return;
+    if (!face) { el.textContent = ""; return; }
+    el.textContent = `Total : ${face} ${this._curRoll.mod >= 0 ? "+" : ""}${this._curRoll.mod} = ${face + this._curRoll.mod}`;
+  },
+  submitPhysicalRoll() {
+    const face = parseInt(document.getElementById("rrFace").value, 10);
+    if (!face || face < 1 || face > 20) { this.toast("Entre le chiffre du dé (1-20)", "warn"); return; }
+    const req = this._curRoll;
+    const total = face + req.mod;
+    const modS = `${req.mod >= 0 ? "+" : ""}${req.mod}`;
+    let outcome = null, cls = "";
+    if (req.dc) {
+      if (face === 20) { outcome = "Réussite critique !"; cls = "crit"; }
+      else if (face === 1) { outcome = "Échec critique !"; cls = "ko"; }
+      else if (total >= req.dc) { outcome = "Réussite"; cls = "ok"; }
+      else { outcome = "Échec"; cls = "ko"; }
+    }
+    State.log({ kind: "dice", text: `${req.label} : d20(${face})${modS} = ${total}${req.dc ? " vs DD " + req.dc + " → " + outcome : ""}` });
+    const pop = document.querySelector("#rollReq .dice-pop");
+    if (pop) pop.innerHTML = `<div class="dice-pop-face">${total}</div>
+      <div class="dice-pop-formula">${this.esc(req.label)} · d20(${face}) ${modS}</div>
+      <div class="dice-pop-result ${cls}">${outcome ? outcome + " — " + total + " vs DD " + req.dc : "Total : " + total}</div>
+      <button class="btn btn-primary btn-block" onclick="UI.closeRollRequest()">Continuer</button>`;
+  },
+  closeRollRequest() { const h = document.getElementById("rollReq"); if (h) h.remove(); this._curRoll = null; this.nextPhysicalRoll(); },
 
   /* ============================================================
      HÉROS
@@ -759,6 +834,11 @@ const UI = {
       </div>
 
       <div class="card">
+        <h3>🎲 Dés</h3>
+        <label class="chk chk-row"><input type="checkbox" ${d.physicalDice ? "checked" : ""} onchange="UI.setPhysicalDice(this.checked)"> <span><b>Je lance mes propres dés</b> — quand l'Oracle demande un jet, il indique le DD et le modificateur, et tu entres le résultat de ton d20 physique. Décoché : l'app lance à ta place.</span></label>
+      </div>
+
+      <div class="card">
         <h3>🎭 Ton rôle (MJ + joueur)</h3>
         <div class="hint">Tu es le MJ mais tu incarnes aussi un perso ? Indique-le : l'Oracle t'assistera pour toute la table ET donnera des moments forts à ton personnage, sans jamais jouer à ta place.</div>
         <label class="f">Mon personnage<select onchange="UI.setMjHero(this.value)">
@@ -828,6 +908,7 @@ const UI = {
   },
   savePlayers() { State.data.players = document.getElementById("playersInput").value.split("\n").map(s => s.trim()).filter(Boolean); State.save(); this.toast("Joueurs enregistrés", "ok"); },
   setMjHero(id) { const c = State.current(); c.mjHeroId = id; State.save(); this.toast(id ? "L'Oracle sait que tu joues aussi 🎭" : "MJ uniquement", "ok"); },
+  setPhysicalDice(v) { State.data.physicalDice = v; State.save(); this.toast(v ? "🎲 Tu lances tes vrais dés" : "L'app lance les dés", "ok"); },
   // Nom de classe reskiné selon l'univers de la campagne (mécanique inchangée)
   skinCls(cls) { const c = State.current(); const sk = c && c.skin ? DATA.SKINS[c.skin] : null; return (sk && sk.classNames && sk.classNames[cls]) || cls; },
   switchCamp(id) { State.switchCampaign(id); this.go("play"); },

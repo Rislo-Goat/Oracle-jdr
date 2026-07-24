@@ -101,6 +101,7 @@ const State = {
     if (!this.data.backend) this.data.backend = { url: location.origin, token: "" };
     if (!this.data.ai) this.data.ai = { provider: "backend", key: "", model: "" };
     if (!this.data.players) this.data.players = [];
+    if (this.data.physicalDice === undefined) this.data.physicalDice = true; // vrais dés par défaut
     this.migrate();
     return this.data;
   },

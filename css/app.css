@@ -287,6 +287,16 @@ textarea { resize:none; line-height:1.45; }
 .dice-pop-result.crit { color:var(--gold); }
 .dice-pop-result.ok { color:var(--green); }
 .dice-pop-result.ko { color:var(--red); }
+.rr-label { font-family:var(--serif); font-size:19px; font-weight:700; margin-bottom:6px; }
+.rr-dc { font-size:13px; color:var(--accent2); margin-bottom:14px; }
+.rr-dc b { color:var(--text); }
+.rr-hint { font-size:13px; color:var(--muted); margin-bottom:10px; }
+#rrFace { font-size:32px; font-weight:800; text-align:center; font-family:var(--serif); padding:12px; margin-bottom:8px; }
+.rr-total { font-size:15px; font-weight:700; color:var(--accent2); min-height:22px; margin-bottom:12px; font-family:var(--serif); }
+.chk-row { align-items:flex-start; gap:10px; }
+.chk-row input { margin-top:3px; }
+.chk-row span { font-size:12.5px; line-height:1.5; color:var(--muted); font-weight:400; }
+.chk-row b { color:var(--text); }
 
 /* Combat / initiative */
 .combat-card.active { border-color:color-mix(in srgb, var(--red) 45%, var(--border)); }
