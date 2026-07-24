@@ -329,9 +329,17 @@ const UI = {
     const h = heroId ? State.hero(heroId) : (targetName ? State.heroByName(targetName) : null);
     let line;
     if (h) {
-      h.hp = Math.max(0, h.hp - total);
+      const before = h.hp;
+      h.hp = Math.max(0, before - total);
       if (c.combat) { const e = c.combat.order.find(o => o.id === h.id || o.name === h.name); if (e && e.hp != null) e.hp = Math.max(0, e.hp - total); }
-      line = `${h.name} subit ${total} dégâts (→ ${h.hp}/${h.maxHp})${h.hp <= 0 ? " — à terre !" : ""}`;
+      let extra = "";
+      if (before === 0) { // déjà inconscient : dégâts = échec de sauvegarde contre la mort (règle 5e)
+        h.deathSaves.f = Math.min(3, (h.deathSaves.f || 0) + 1);
+        extra = h.deathSaves.f >= 3 ? " — 💀 mort" : ` — échec contre la mort (${h.deathSaves.f}/3)`;
+      } else if ((total - before) >= h.maxHp) { // dégâts massifs → mort instantanée
+        h.deathSaves = { s: 0, f: 3 }; extra = " — 💀 mort sur le coup (dégâts massifs)";
+      } else if (h.hp === 0) extra = " — à terre, inconscient";
+      line = `${h.name} subit ${total} dégâts (→ ${h.hp}/${h.maxHp})${extra}`;
       State.log({ kind: "event", text: line });
     } else if (targetName && c.combat) {
       const e = c.combat.order.find(o => o.name.toLowerCase() === (targetName || "").toLowerCase());
@@ -630,9 +638,12 @@ const UI = {
   setSlot(id, lv, n) { const h = State.hero(id); h.slotsUsed = h.slotsUsed || {}; const cur = h.slotsUsed[lv] || 0; const max = DND.slotsFor(h.cls, h.level)[lv] || 0; h.slotsUsed[lv] = Math.max(0, Math.min(max, cur === n ? n - 1 : n)); State.save(); this.editHero(id); },
   restLong(id) {
     const h = State.hero(id);
-    h.hp = h.maxHp; h.deathSaves = { s: 0, f: 0 }; h.slotsUsed = {}; h.hitDiceUsed = 0;
-    State.save(); State.log({ kind: "event", text: `🛌 ${h.name} termine un repos long : PV au max, emplacements et dés de vie récupérés.` });
-    this.toast("🛌 Repos long — tout récupéré", "ok"); this.editHero(id); this.renderHeader();
+    // Règle 5e : PV au max, tous les emplacements, et la MOITIÉ des dés de vie (min 1)
+    const regain = Math.max(1, Math.floor(h.level / 2));
+    h.hp = h.maxHp; h.deathSaves = { s: 0, f: 0 }; h.slotsUsed = {};
+    h.hitDiceUsed = Math.max(0, (h.hitDiceUsed || 0) - regain);
+    State.save(); State.log({ kind: "event", text: `🛌 ${h.name} termine un repos long : PV au max, emplacements récupérés, +${regain} dé(s) de vie.` });
+    this.toast("🛌 Repos long", "ok"); this.editHero(id); this.renderHeader();
   },
   restShort(id) {
     const h = State.hero(id);
