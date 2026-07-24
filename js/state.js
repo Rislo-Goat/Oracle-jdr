@@ -112,7 +112,7 @@ const State = {
     // Modèles Groq périmés (retirés par Groq) → bascule sur le modèle courant, sinon
     // l'appel renvoie une erreur HTTP 400 et l'app tombe hors-ligne « IA indisponible ».
     if (this.data.ai.provider === "groq") {
-      const dead = /llama-3\.1-70b|llama3-70b|mixtral|llama-3\.1-8b-instant$|gemma-7b/i;
+      const dead = /llama-3\.1-70b|llama3-70b|mixtral|gemma-7b/i;
       if (!this.data.ai.model || dead.test(this.data.ai.model)) this.data.ai.model = "llama-3.3-70b-versatile";
     }
     if (!this.data.players) this.data.players = [];

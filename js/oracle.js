@@ -48,18 +48,18 @@ const Oracle = {
       ? `\n⚔️ COMBAT EN COURS — round ${c.combat.round}. Ordre d'initiative : ${c.combat.order.map((o, i) => `${i === c.combat.turn ? "▶ " : ""}${o.name} (${o.init})${o.hp != null ? " PV" + o.hp : ""}`).join(" → ")}`
       : "";
 
-    const npcs = c.npcs.length ? c.npcs.slice(-20).map(n =>
+    const npcs = c.npcs.length ? c.npcs.slice(-12).map(n =>
       `• ${n.name}${n.role ? " — " + n.role : ""}${n.trait ? " (" + n.trait + ")" : ""}${n.place ? " @ " + n.place : ""}${n.attitude ? " · " + n.attitude : ""}`).join("\n") : "• (aucun)";
     const places = c.places.length ? c.places.map(p => `• ${p.name}${p.desc ? " — " + p.desc : ""}`).join("\n") : "• (aucun)";
     const quests = c.quests.length ? c.quests.map(q => `• [${q.state === "faite" ? "✔ FAITE" : "EN COURS"}] ${q.title}${q.desc ? " — " + q.desc : ""}`).join("\n") : "• (aucune)";
     const beasts = c.bestiary.length ? c.bestiary.map(b => `• ${b.name}${b.hp ? " (PV " + b.hp + ")" : ""}${b.threat ? " · " + b.threat : ""}${b.trait ? " — " + b.trait : ""}`).join("\n") : "• (aucune)";
     const lore = c.lore.length ? c.lore.map(l => "- " + l).join("\n") : "- (rien encore)";
-    const chron = State.recentChronicle(16).map(e => {
+    const chron = State.recentChronicle(10).map(e => {
       const tag = { action: "🎬 ACTION", oracle: "🔮 MJ", dice: "🎲 DÉ", pnj: "💬 PNJ", scene: "📍 SCÈNE", event: "⚡ FAIT", note: "📝" }[e.kind] || "📝";
       return `${tag}${e.who ? " " + e.who : ""} : ${e.text}`;
     }).join("\n") || "(la partie commence)";
     const seed = (c.seed || "").trim()
-      ? "\n═══ NOTES & CONVERSATIONS PASSÉES (matière première fournie par le MJ — traite-la comme canon) ═══\n" + c.seed.trim().slice(0, 6000)
+      ? "\n═══ NOTES & CONVERSATIONS PASSÉES (matière première fournie par le MJ — traite-la comme canon) ═══\n" + c.seed.trim().slice(0, 3500)
       : "";
 
     const mjHero = c.mjHeroId ? c.heroes.find(h => h.id === c.mjHeroId) : null;
@@ -82,15 +82,9 @@ ENJEU CENTRAL : ${c.stakes || "(à définir avec le MJ)"}
 SCÈNE ACTUELLE : ${c.scene && c.scene.title ? c.scene.title + (c.scene.mood ? " — ambiance : " + c.scene.mood : "") : "(aucune scène posée)"}
 Séance n°${c.session}.${combat}
 ${is5e ? `
-═══ RÈGLES D&D 5e (tu mènes selon la 5e ; le LORE est adapté à l'univers ci-dessus) ═══
-• Résolution : quand une action est incertaine, demande un test → 1d20 + modificateur de caractéristique (+ bonus de maîtrise si le héros maîtrise la compétence/sauvegarde). Tu NE lances PAS toi-même : émets [JET: …] et l'app calcule le bon modificateur du héros et lance.
-• Choisis la bonne caractéristique/compétence : Athlétisme(FOR) ; Acrobaties/Discrétion/Escamotage(DEX) ; Dressage/Médecine/Perception/Perspicacité/Survie(SAG) ; Arcanes/Histoire/Investigation/Nature/Religion(INT) ; Intimidation/Persuasion/Représentation/Tromperie(CHA).
-• Degré de Difficulté (DD) : Très facile 5 · Facile 10 · Moyen 15 · Difficile 20 · Très difficile 25 · Quasi impossible 30. Choisis un DD juste et annonce-le.
-• Sauvegardes : contre pièges, sorts, poisons, peur… → [JET: cible=…; sauvegarde=DEX; diff=…].
-• Combat : lance l'initiative ([COMBAT: start] démarre le suivi, l'app tire l'init des héros). Les attaques = 1d20 + mod + maîtrise vs CA ([JET: cible=…; attaque=Épée; bonus=5; diff=<CA cible>]). Dégâts = décris et applique via [PV: cible=…; delta=-X]. 20 naturel = critique (double les dés de dégâts).
-• États (5e) : applique-les via [PJ: cible=…; condition+=Empoisonné] (à terre, agrippé, aveuglé, charmé, effrayé, empoisonné, entravé, étourdi, inconscient, paralysé, pétrifié, neutralisé, invisible, épuisement).
-• À 0 PV : le héros tombe → jets de sauvegarde contre la mort. Reste dramatique mais équitable.
-• Repos : court (dés de vie) / long (PV + emplacements récupérés). Récompense l'XP en fin de rencontre si pertinent via [PJ: cible=…; xp=…].
+═══ RÈGLES D&D 5e (tu connais la 5e ; applique-la à la lettre, LORE adapté à l'univers) ═══
+• Tu ne lances JAMAIS les dés toi-même : pour toute action incertaine, émets [JET: …] (l'app calcule le modificateur exact du héros + maîtrise et lance le d20). Annonce toujours un DD juste (Facile 10 · Moyen 15 · Difficile 20).
+• Combat : [COMBAT: start] pour l'initiative ; attaque = [JET: cible=…; attaque=Épée; bonus=5; diff=<CA>] ; dégâts = [DEGATS: …] (le joueur lance) ; 20 nat = critique. États via [PJ: condition+=…]. À 0 PV → jets de sauvegarde contre la mort. Repos court/long et XP selon les règles 5e.
 ` : ""}
 LES HÉROS (personnages-joueurs) :
 ${heroes}
@@ -205,21 +199,22 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
 
     // 2) Clé directe côté téléphone
     if (!ai.key) { this.lastStatus = { mode: "offline", reason: "aucune clé" }; return this.fallback(userMessage); }
-    const model = ai.model || DATA.AI_PROVIDERS[ai.provider].model;
-    const call = () => {
-      if (ai.provider === "claude") return this.callClaude(ai.key, model, system, messages);
-      if (ai.provider === "gemini") return this.callGemini(ai.key, model, system, messages);
-      if (ai.provider === "openrouter") return this.callOAI(ai.key, model, system, messages, "https://openrouter.ai/api/v1/chat/completions");
-      return this.callOAI(ai.key, model, system, messages, "https://api.groq.com/openai/v1/chat/completions");
+    let model = ai.model || DATA.AI_PROVIDERS[ai.provider].model;
+    const GROQ_LIGHT = "llama-3.1-8b-instant"; // modèle Groq rapide, limites bien plus hautes
+    const call = (m) => {
+      if (ai.provider === "claude") return this.callClaude(ai.key, m, system, messages);
+      if (ai.provider === "gemini") return this.callGemini(ai.key, m, system, messages);
+      if (ai.provider === "openrouter") return this.callOAI(ai.key, m, system, messages, "https://openrouter.ai/api/v1/chat/completions");
+      return this.callOAI(ai.key, m, system, messages, "https://api.groq.com/openai/v1/chat/completions");
     };
     // Réessaie automatiquement les erreurs TRANSITOIRES (réseau, 429, 5xx),
     // pour ne pas tomber hors-ligne sur une micro-coupure 4G. Pas de retry
     // sur une clé invalide (401/403) — inutile, on le signale.
-    let lastErr;
-    for (let i = 0; i < 5; i++) {
+    let lastErr, switched = false;
+    for (let i = 0; i < 6; i++) {
       try {
-        const text = await call();
-        this.lastStatus = { mode: "ai", provider: ai.provider };
+        const text = await call(model);
+        this.lastStatus = { mode: "ai", provider: ai.provider + (model === GROQ_LIGHT ? " (rapide)" : "") };
         return text;
       } catch (e) {
         lastErr = e;
@@ -229,6 +224,14 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
         const transient = rate || /500|502|503|504|network|timeout|fetch|failed|econn|réseau|load failed/i.test(msg);
         const auth = /401|403|invalid.?api.?key|api key|unauthor|permission|denied/i.test(msg);
         if (auth || dailyQuota || !transient) break;
+        // Filet anti-blocage : dès que le gros modèle Groq sature (429), on rebascule
+        // AUSSITÔT sur un modèle Groq plus léger (limites bien plus hautes) — même clé,
+        // partie qui continue sans attendre. On ne bascule qu'une fois.
+        if (rate && ai.provider === "groq" && model !== GROQ_LIGHT && !switched) {
+          model = GROQ_LIGHT; switched = true;
+          this.lastStatus = { mode: "wait", reason: "bascule sur modèle rapide…" };
+          continue; // réessaie tout de suite, sans délai
+        }
         // Sur 429, Groq indique souvent « try again in X s » : on respecte ce délai.
         const suggested = this.retryDelay(msg);
         this.lastStatus = { mode: "wait", reason: rate ? "limite de débit — patiente…" : "réseau instable — nouvelle tentative…" };
