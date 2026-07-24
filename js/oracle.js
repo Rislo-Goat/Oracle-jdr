@@ -197,49 +197,65 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
       return this.fallback(userMessage) + this.downNote(lastErr);
     }
 
-    // 2) Clé directe côté téléphone
-    if (!ai.key) { this.lastStatus = { mode: "offline", reason: "aucune clé" }; return this.fallback(userMessage); }
-    let model = ai.model || DATA.AI_PROVIDERS[ai.provider].model;
-    const GROQ_LIGHT = "llama-3.1-8b-instant"; // modèle Groq rapide, limites bien plus hautes
-    const call = (m) => {
-      if (ai.provider === "claude") return this.callClaude(ai.key, m, system, messages);
-      if (ai.provider === "gemini") return this.callGemini(ai.key, m, system, messages);
-      if (ai.provider === "openrouter") return this.callOAI(ai.key, m, system, messages, "https://openrouter.ai/api/v1/chat/completions");
-      return this.callOAI(ai.key, m, system, messages, "https://api.groq.com/openai/v1/chat/completions");
-    };
-    // Réessaie automatiquement les erreurs TRANSITOIRES (réseau, 429, 5xx),
-    // pour ne pas tomber hors-ligne sur une micro-coupure 4G. Pas de retry
-    // sur une clé invalide (401/403) — inutile, on le signale.
-    let lastErr, switched = false;
-    for (let i = 0; i < 6; i++) {
-      try {
-        const text = await call(model);
-        this.lastStatus = { mode: "ai", provider: ai.provider + (model === GROQ_LIGHT ? " (rapide)" : "") };
-        return text;
-      } catch (e) {
-        lastErr = e;
-        const msg = e.message || "";
-        const rate = /429|rate.?limit|too many/i.test(msg);
-        const dailyQuota = /per day|daily|quota exceeded|out of|insufficient|billing/i.test(msg);
-        const transient = rate || /500|502|503|504|network|timeout|fetch|failed|econn|réseau|load failed/i.test(msg);
-        const auth = /401|403|invalid.?api.?key|api key|unauthor|permission|denied/i.test(msg);
-        if (auth || dailyQuota || !transient) break;
-        // Filet anti-blocage : dès que le gros modèle Groq sature (429), on rebascule
-        // AUSSITÔT sur un modèle Groq plus léger (limites bien plus hautes) — même clé,
-        // partie qui continue sans attendre. On ne bascule qu'une fois.
-        if (rate && ai.provider === "groq" && model !== GROQ_LIGHT && !switched) {
-          model = GROQ_LIGHT; switched = true;
-          this.lastStatus = { mode: "wait", reason: "bascule sur modèle rapide…" };
-          continue; // réessaie tout de suite, sans délai
+    // 2) Clé(s) directe(s) côté téléphone : fournisseur PRINCIPAL + SECOURS éventuel.
+    const backup = State.data.backupAi;
+    const haveBackup = backup && backup.key && backup.provider;
+    if (!ai.key && !haveBackup) { this.lastStatus = { mode: "offline", reason: "aucune clé" }; return this.fallback(userMessage); }
+
+    // Exécute UN fournisseur avec ses tentatives (retry réseau/429 + bascule modèle rapide
+    // Groq). Renvoie { text } en cas de succès, sinon { err }.
+    const runProvider = async (cfg) => {
+      if (!cfg || !cfg.key) return { err: new Error("aucune clé") };
+      let model = cfg.model || (DATA.AI_PROVIDERS[cfg.provider] || {}).model;
+      const GROQ_LIGHT = "llama-3.1-8b-instant"; // modèle Groq rapide, limites bien plus hautes
+      const call = (m) => {
+        if (cfg.provider === "claude") return this.callClaude(cfg.key, m, system, messages);
+        if (cfg.provider === "gemini") return this.callGemini(cfg.key, m, system, messages);
+        if (cfg.provider === "openrouter") return this.callOAI(cfg.key, m, system, messages, "https://openrouter.ai/api/v1/chat/completions");
+        return this.callOAI(cfg.key, m, system, messages, "https://api.groq.com/openai/v1/chat/completions");
+      };
+      let lastErr, switched = false;
+      for (let i = 0; i < 6; i++) {
+        try {
+          const text = await call(model);
+          this.lastStatus = { mode: "ai", provider: cfg.provider + (model === GROQ_LIGHT ? " (rapide)" : "") };
+          return { text };
+        } catch (e) {
+          lastErr = e;
+          const msg = e.message || "";
+          const rate = /429|rate.?limit|too many|resource_exhausted/i.test(msg);
+          const dailyQuota = /per day|daily|quota exceeded|out of|insufficient|billing/i.test(msg);
+          const transient = rate || /500|502|503|504|network|timeout|fetch|failed|econn|réseau|load failed/i.test(msg);
+          const auth = /401|403|invalid.?api.?key|api key|unauthor|permission|denied/i.test(msg);
+          if (auth || !transient) return { err: e };       // erreur définitive : on passe au secours
+          if (dailyQuota) return { err: e, exhausted: true }; // épuisé : direction secours
+          // Filet anti-blocage : gros modèle Groq saturé (429) → bascule AUSSITÔT sur le
+          // modèle Groq léger (limites bien plus hautes), même clé, sans attendre. Une fois.
+          if (rate && cfg.provider === "groq" && model !== GROQ_LIGHT && !switched) {
+            model = GROQ_LIGHT; switched = true;
+            this.lastStatus = { mode: "wait", reason: "bascule sur modèle rapide…" };
+            continue;
+          }
+          const suggested = this.retryDelay(msg);
+          this.lastStatus = { mode: "wait", reason: rate ? "limite de débit — patiente…" : "réseau instable — nouvelle tentative…" };
+          await new Promise(r => setTimeout(r, suggested || (900 * (i + 1))));
         }
-        // Sur 429, Groq indique souvent « try again in X s » : on respecte ce délai.
-        const suggested = this.retryDelay(msg);
-        this.lastStatus = { mode: "wait", reason: rate ? "limite de débit — patiente…" : "réseau instable — nouvelle tentative…" };
-        await new Promise(r => setTimeout(r, suggested || (900 * (i + 1))));
       }
+      return { err: lastErr };
+    };
+
+    let res = await runProvider(ai);
+    if (res.text) return res.text;
+    // Bascule sur le fournisseur de SECOURS (ex. Gemini) si le principal a échoué/est épuisé.
+    if (haveBackup && !(ai.key && backup.provider === ai.provider && backup.key === ai.key)) {
+      this.lastStatus = { mode: "wait", reason: "bascule sur le fournisseur de secours…" };
+      const r2 = await runProvider(backup);
+      if (r2.text) return r2.text;
+      if (r2.err) res = r2; // garde la cause la plus récente pour le message
     }
-    this.lastStatus = { mode: "offline", reason: this.cause(lastErr.message) };
-    return this.fallback(userMessage) + this.downNote(lastErr.message);
+    const em = (res.err && res.err.message) || "";
+    this.lastStatus = { mode: "offline", reason: this.cause(em) };
+    return this.fallback(userMessage) + this.downNote(em);
   },
 
   async callClaude(key, model, system, messages) {
@@ -266,7 +282,7 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ system_instruction: { parts: [{ text: system }] }, contents: messages.map(m => ({ role: m.role === "ai" ? "model" : "user", parts: [{ text: m.content }] })), generationConfig: { maxOutputTokens: 1600 } }),
+      body: JSON.stringify({ system_instruction: { parts: [{ text: system }] }, contents: messages.map(m => ({ role: m.role === "ai" ? "model" : "user", parts: [{ text: m.content }] })), generationConfig: { maxOutputTokens: 1100 } }),
     });
     if (!r.ok) throw new Error(`HTTP ${r.status} — ${(await r.text()).slice(0, 160)}`);
     const j = await r.json();

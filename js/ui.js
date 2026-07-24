@@ -1063,7 +1063,7 @@ const UI = {
      TABLE (réglages)
      ============================================================ */
   renderTable() {
-    const c = State.current();
+    const c = State.current() || State.blankCampaign();  // évite tout plantage si aucune campagne
     const d = State.data;
     const el = document.getElementById("view-table");
     const ai = d.ai, be = d.backend;
@@ -1094,9 +1094,10 @@ const UI = {
         <h3>🔮 Oracle IA</h3>
         <div class="ai-status ${ai.key || ai.provider === "backend" ? "on" : "off"}">${this.aiStatusLabel()}</div>
         ${ai.key ? `<div class="key-saved">🔐 Clé enregistrée : <code>${this.esc(ai.key.slice(0, 6))}…${this.esc(ai.key.slice(-4))}</code> <span class="key-len">(${ai.key.length} car.)</span></div>` : ""}
+        ${(State.data.backupAi && State.data.backupAi.key) ? `<div class="key-saved">🛟 Secours : <b>${this.esc((DATA.AI_PROVIDERS[State.data.backupAi.provider] || {}).name || State.data.backupAi.provider)}</b> — bascule auto si le principal sature. <button class="btn-linkx" onclick="UI.clearBackup()">retirer</button></div>` : ""}
         <div class="key-quick">
-          <label class="f">🔑 Colle ta clé ici (Groq ou Gemini — gratuit)<input id="quickKey" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="gsk_…  ou  AIza…" onchange="UI.pasteKey(this.value)"></label>
-          <div class="hint">Colle et c'est tout : l'app détecte le fournisseur et active l'Oracle. Ta clé reste sur ton téléphone. <a class="link" href="https://console.groq.com/keys" target="_blank">↗ Obtenir une clé Groq gratuite</a></div>
+          <label class="f">🔑 Colle ta clé ici (Groq ou Gemini — gratuit)<input id="quickKey" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="gsk_…  ou  AIza… / AQ.…" onchange="UI.pasteKey(this.value)"></label>
+          <div class="hint">Colle et c'est tout : l'app détecte le fournisseur et active l'Oracle. <b>Colle une 2ᵉ clé d'un autre fournisseur</b> (ex. Gemini) → elle devient un <b>secours automatique</b>. Ta clé reste sur ton téléphone. <a class="link" href="https://console.groq.com/keys" target="_blank">↗ Clé Groq gratuite</a></div>
           ${ai.provider !== "backend" && ai.key ? `<button class="btn btn-ghost btn-sm" onclick="UI.testAiKey()">🔌 Tester la clé (appel réel)</button>` : ""}
         </div>
         <details class="ai-adv"><summary>Réglages avancés</summary>
@@ -1176,15 +1177,30 @@ const UI = {
     v = (v || "").trim();
     if (!v) return;
     const d = State.data;
-    if (/^gsk_/.test(v)) { d.ai.provider = "groq"; d.ai.model = DATA.AI_PROVIDERS.groq.model; d.ai.key = v; this.toast("🔮 Clé Groq détectée — Oracle activé ✅", "ok"); }
-    else if (/^AIza/.test(v)) { d.ai.provider = "gemini"; d.ai.model = DATA.AI_PROVIDERS.gemini.model; d.ai.key = v; this.toast("🔮 Clé Gemini détectée — Oracle activé ✅", "ok"); }
-    else if (/^sk-or-/.test(v)) { d.ai.provider = "openrouter"; d.ai.model = DATA.AI_PROVIDERS.openrouter.model; d.ai.key = v; this.toast("🔮 Clé OpenRouter détectée ✅", "ok"); }
-    else { d.ai.key = v; if (d.ai.provider === "backend") d.ai.provider = "groq"; this.toast("Clé enregistrée. Vérifie le fournisseur dans les réglages avancés.", "warn"); }
+    // Devine le fournisseur d'après le préfixe de la clé.
+    let prov = null;
+    if (/^gsk_/.test(v)) prov = "groq";
+    else if (/^AIza/.test(v) || /^AQ\./.test(v)) prov = "gemini";  // Gemini : ancien (AIza) et nouveau (AQ.) formats
+    else if (/^sk-or-/.test(v)) prov = "openrouter";
+    const names = { groq: "Groq", gemini: "Gemini", openrouter: "OpenRouter" };
+    if (!prov) {
+      d.ai.key = v; if (d.ai.provider === "backend") d.ai.provider = "groq";
+      this.toast("Clé enregistrée. Vérifie le fournisseur dans les réglages avancés.", "warn");
+    } else if (!d.ai.key || d.ai.provider === prov) {
+      // Première clé, ou même fournisseur → fournisseur PRINCIPAL.
+      d.ai.provider = prov; d.ai.model = DATA.AI_PROVIDERS[prov].model; d.ai.key = v;
+      this.toast(`🔮 Clé ${names[prov]} détectée — Oracle activé ✅`, "ok");
+    } else {
+      // Un principal existe déjà, d'un autre fournisseur → clé de SECOURS (bascule auto).
+      d.backupAi = { provider: prov, key: v, model: DATA.AI_PROVIDERS[prov].model };
+      this.toast(`🛟 ${names[prov]} ajouté en secours — bascule auto si ${names[d.ai.provider] || d.ai.provider} sature`, "ok");
+    }
     Oracle.lastStatus = null; this.setupDismissed = false;
     State.save(); this.renderTable();
     if (d.ai.key && d.ai.provider !== "backend") setTimeout(() => this.testAiKey(), 150); // vérifie tout de suite
   },
   setAIProvider(v) { State.data.ai.provider = v; State.data.ai.model = DATA.AI_PROVIDERS[v].model || ""; State.save(); this.renderTable(); },
+  clearBackup() { State.data.backupAi = { provider: "", key: "", model: "" }; State.save(); this.toast("Secours retiré", "ok"); this.renderTable(); },
   setAIKey(v) { State.data.ai.key = v.trim(); State.save(); },
   setAIModel(v) { State.data.ai.model = v.trim(); State.save(); },
   setBackend(f, v) { State.data.backend[f] = v.trim(); State.save(); },

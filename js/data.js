@@ -94,7 +94,7 @@ const DATA = {
                   url: "https://console.anthropic.com/settings/keys" },
     groq:       { name: "Groq (gratuit, rapide)", model: "llama-3.3-70b-versatile", needsKey: true,
                   url: "https://console.groq.com/keys" },
-    gemini:     { name: "Google Gemini (gratuit)", model: "gemini-2.0-flash", needsKey: true,
+    gemini:     { name: "Google Gemini (gratuit)", model: "gemini-flash-latest", needsKey: true,
                   url: "https://aistudio.google.com/apikey" },
     openrouter: { name: "OpenRouter", model: "meta-llama/llama-3.3-70b-instruct:free", needsKey: true,
                   url: "https://openrouter.ai/settings/keys" },

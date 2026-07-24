@@ -103,6 +103,7 @@ const State = {
     // Auto-détection du backend : par défaut la même origine que la PWA.
     if (!this.data.backend) this.data.backend = { url: location.origin, token: "" };
     if (!this.data.ai) this.data.ai = { provider: "groq", key: "", model: "" };
+    if (!this.data.backupAi) this.data.backupAi = { provider: "", key: "", model: "" }; // fournisseur de secours (bascule auto)
     // Auto-réparation : un ancien réglage "backend" sans serveur configuré tombait
     // toujours hors-ligne. On repasse sur Groq (gratuit, marche depuis le navigateur).
     if (this.data.ai.provider === "backend" && !(this.data.backend && this.data.backend.token)) {
