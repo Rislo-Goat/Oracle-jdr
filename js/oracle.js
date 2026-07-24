@@ -202,46 +202,57 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
     const haveBackup = backup && backup.key && backup.provider;
     if (!ai.key && !haveBackup) { this.lastStatus = { mode: "offline", reason: "aucune clé" }; return this.fallback(userMessage); }
 
-    // Exécute UN fournisseur avec ses tentatives (retry réseau/429 + bascule modèle rapide
-    // Groq). Renvoie { text } en cas de succès, sinon { err }.
+    // Exécute UN fournisseur, en ÉCONOMISANT ton quota : au plus 2 appels.
+    // — Un 429 = quota déjà atteint : ré-essayer le MÊME modèle le brûlerait davantage,
+    //   donc on ne boucle JAMAIS sur un 429. Pour Groq on tente UNE fois le modèle léger
+    //   (quota séparé). Une vraie coupure réseau : on retente UNE fois. Rien d'autre.
     const runProvider = async (cfg) => {
       if (!cfg || !cfg.key) return { err: new Error("aucune clé") };
-      let model = cfg.model || (DATA.AI_PROVIDERS[cfg.provider] || {}).model;
-      const GROQ_LIGHT = "llama-3.1-8b-instant"; // modèle Groq rapide, limites bien plus hautes
+      const GROQ_LIGHT = "llama-3.1-8b-instant";
+      const model = cfg.model || (DATA.AI_PROVIDERS[cfg.provider] || {}).model;
       const call = (m) => {
         if (cfg.provider === "claude") return this.callClaude(cfg.key, m, system, messages);
         if (cfg.provider === "gemini") return this.callGemini(cfg.key, m, system, messages);
         if (cfg.provider === "openrouter") return this.callOAI(cfg.key, m, system, messages, "https://openrouter.ai/api/v1/chat/completions");
         return this.callOAI(cfg.key, m, system, messages, "https://api.groq.com/openai/v1/chat/completions");
       };
-      let lastErr, switched = false;
-      for (let i = 0; i < 6; i++) {
-        try {
-          const text = await call(model);
-          this.lastStatus = { mode: "ai", provider: cfg.provider + (model === GROQ_LIGHT ? " (rapide)" : "") };
-          return { text };
-        } catch (e) {
-          lastErr = e;
-          const msg = e.message || "";
-          const rate = /429|rate.?limit|too many|resource_exhausted/i.test(msg);
-          const dailyQuota = /per day|daily|quota exceeded|out of|insufficient|billing/i.test(msg);
-          const transient = rate || /500|502|503|504|network|timeout|fetch|failed|econn|réseau|load failed/i.test(msg);
-          const auth = /401|403|invalid.?api.?key|api key|unauthor|permission|denied/i.test(msg);
-          if (auth || !transient) return { err: e };       // erreur définitive : on passe au secours
-          if (dailyQuota) return { err: e, exhausted: true }; // épuisé : direction secours
-          // Filet anti-blocage : gros modèle Groq saturé (429) → bascule AUSSITÔT sur le
-          // modèle Groq léger (limites bien plus hautes), même clé, sans attendre. Une fois.
-          if (rate && cfg.provider === "groq" && model !== GROQ_LIGHT && !switched) {
-            model = GROQ_LIGHT; switched = true;
-            this.lastStatus = { mode: "wait", reason: "bascule sur modèle rapide…" };
-            continue;
-          }
-          const suggested = this.retryDelay(msg);
-          this.lastStatus = { mode: "wait", reason: rate ? "limite de débit — patiente…" : "réseau instable — nouvelle tentative…" };
-          await new Promise(r => setTimeout(r, suggested || (900 * (i + 1))));
+      const classify = (e) => {
+        const msg = e.message || "";
+        return {
+          rate: /429|rate.?limit|too many|resource_exhausted/i.test(msg),
+          net: /500|502|503|504|network|timeout|fetch|failed|econn|réseau|load failed/i.test(msg),
+          auth: /401|403|invalid.?api.?key|api key|unauthor|permission|denied/i.test(msg),
+        };
+      };
+      // Appel 1
+      try {
+        const text = await call(model);
+        this.lastStatus = { mode: "ai", provider: cfg.provider };
+        return { text };
+      } catch (e1) {
+        const c = classify(e1);
+        // Groq saturé → UNE tentative sur le modèle léger (quota distinct), sinon on arrête.
+        if (c.rate && cfg.provider === "groq" && model !== GROQ_LIGHT) {
+          this.lastStatus = { mode: "wait", reason: "modèle rapide…" };
+          try {
+            const text = await call(GROQ_LIGHT);
+            this.lastStatus = { mode: "ai", provider: "groq (rapide)" };
+            return { text };
+          } catch (e2) { return { err: e2 }; }
         }
+        // Coupure réseau franche → UNE seule nouvelle tentative (pas de quota consommé si ça a coupé).
+        if (c.net && !c.rate) {
+          this.lastStatus = { mode: "wait", reason: "réseau instable — 2ᵉ essai…" };
+          await new Promise(r => setTimeout(r, 1200));
+          try {
+            const text = await call(model);
+            this.lastStatus = { mode: "ai", provider: cfg.provider };
+            return { text };
+          } catch (e2) { return { err: e2 }; }
+        }
+        // 429 (quota atteint), clé invalide, ou autre : on N'insiste PAS → secours / hors-ligne.
+        return { err: e1 };
       }
-      return { err: lastErr };
     };
 
     let res = await runProvider(ai);
