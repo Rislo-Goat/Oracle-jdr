@@ -190,6 +190,7 @@ textarea { resize:none; line-height:1.45; }
 .chips { display:flex; gap:7px; overflow-x:auto; padding-bottom:8px; -webkit-overflow-scrolling:touch; }
 .chip { flex-shrink:0; background:color-mix(in srgb,var(--ink) 25%,var(--card)); border:1px solid var(--border); border-radius:8px; padding:8px 12px; font-size:12.5px; font-weight:600; color:var(--text); }
 .chip:active { transform:scale(.95); border-color:var(--accent); }
+.chip-intro { background:linear-gradient(180deg,var(--accent2),var(--accent)); color:var(--ink); border-color:color-mix(in srgb,var(--accent) 55%,#000); font-weight:800; }
 .composer-row { display:flex; gap:8px; align-items:flex-end; }
 .who-select { width:auto; max-width:38%; flex-shrink:0; font-size:13px; padding:11px 8px; }
 .composer-row textarea { flex:1; max-height:120px; }

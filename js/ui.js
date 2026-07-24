@@ -87,7 +87,8 @@ const UI = {
       <div class="feed" id="feed">${feed}</div>
       <div class="composer">
         <div class="chips">
-          <button class="chip" onclick="UI.compose('Décris la scène et l\\'ambiance actuelle avec des détails immersifs.')">🎬 Décris la scène</button>
+          <button class="chip chip-intro" onclick="UI.introduce()">🎬 Introduire l'aventure</button>
+          <button class="chip" onclick="UI.compose('Décris la scène et l\\'ambiance actuelle avec des détails immersifs.')">🖼️ Décris la scène</button>
           <button class="chip" onclick="UI.compose('Un PNJ intervient. Qui est-ce et que dit-il ?')">💬 Un PNJ parle</button>
           <button class="chip" onclick="UI.compose('Introduis une complication inattendue, maintenant.')">⚡ Complication</button>
           <button class="chip" onclick="UI.compose('Le groupe cherche quoi faire ensuite : donne 3 pistes ou accroches.')">🧭 3 pistes</button>
@@ -276,6 +277,12 @@ const UI = {
     c.kickoff = ""; State.save();
     this.go("play");
     this.toast(c.origin === "resume" ? "🔄 L'Oracle reprend le fil…" : "✨ L'Oracle bâtit ta campagne…");
+    this.runOracle(prompt, "play", "");
+  },
+
+  // Intro d'ouverture rejouable : présente l'histoire, les héros et le lieu de départ.
+  introduce() {
+    const prompt = "Fais l'INTRODUCTION d'ouverture de la partie, comme au tout début d'une campagne de JDR : (1) plante le décor et le pitch de l'aventure de façon immersive et cinématographique ; (2) présente brièvement CHAQUE héros par son nom ; (3) décris le lieu de départ et son ambiance ; (4) explique la situation initiale et ce qui amène le groupe ici ; (5) termine sur une accroche ou un premier choix concret pour lancer l'action. Reste fidèle à l'univers et au ton, et pose la scène via tes directives.";
     this.runOracle(prompt, "play", "");
   },
 
@@ -989,6 +996,7 @@ const UI = {
         <div class="key-quick">
           <label class="f">🔑 Colle ta clé ici (Groq ou Gemini — gratuit)<input id="quickKey" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="gsk_…  ou  AIza…" onchange="UI.pasteKey(this.value)"></label>
           <div class="hint">Colle et c'est tout : l'app détecte le fournisseur et active l'Oracle. Ta clé reste sur ton téléphone. <a class="link" href="https://console.groq.com/keys" target="_blank">↗ Obtenir une clé Groq gratuite</a></div>
+          ${ai.provider !== "backend" && ai.key ? `<button class="btn btn-ghost btn-sm" onclick="UI.testAiKey()">🔌 Tester la clé (appel réel)</button>` : ""}
         </div>
         <details class="ai-adv"><summary>Réglages avancés</summary>
         <label class="f">Fournisseur<select id="aiProv" onchange="UI.setAIProvider(this.value)">${Object.entries(DATA.AI_PROVIDERS).map(([k, p]) => `<option value="${k}" ${k === ai.provider ? "selected" : ""}>${p.name}</option>`).join("")}</select></label>
@@ -1081,6 +1089,20 @@ const UI = {
   savePlayers() { State.data.players = document.getElementById("playersInput").value.split("\n").map(s => s.trim()).filter(Boolean); State.save(); this.toast("Joueurs enregistrés", "ok"); },
   setMjHero(id) { const c = State.current(); c.mjHeroId = id; State.save(); this.toast(id ? "L'Oracle sait que tu joues aussi 🎭" : "MJ uniquement", "ok"); },
   setPhysicalDice(v) { State.data.physicalDice = v; State.save(); this.toast(v ? "🎲 Tu lances tes vrais dés" : "L'app lance les dés", "ok"); },
+  async testAiKey() {
+    const ai = State.data.ai; const model = ai.model || (DATA.AI_PROVIDERS[ai.provider] || {}).model;
+    this.toast("Test en cours…");
+    const msg = [{ role: "user", content: "Réponds juste : OK" }];
+    try {
+      let t;
+      if (ai.provider === "claude") t = await Oracle.callClaude(ai.key, model, "Réponds OK", msg);
+      else if (ai.provider === "gemini") t = await Oracle.callGemini(ai.key, model, "Réponds OK", msg);
+      else if (ai.provider === "openrouter") t = await Oracle.callOAI(ai.key, model, "Réponds OK", msg, "https://openrouter.ai/api/v1/chat/completions");
+      else t = await Oracle.callOAI(ai.key, model, "Réponds OK", msg, "https://api.groq.com/openai/v1/chat/completions");
+      Oracle.lastStatus = { mode: "ai", provider: ai.provider }; this.setupDismissed = true;
+      this.toast("✅ Clé valide — l'Oracle est opérationnel !", "ok"); this.renderTable(); this.renderHeader();
+    } catch (e) { this.toast("❌ " + Oracle.cause(e.message) + " — recolle une clé complète", "warn"); }
+  },
   // Nom de classe reskiné selon l'univers de la campagne (mécanique inchangée)
   skinCls(cls) { const c = State.current(); const sk = c && c.skin ? DATA.SKINS[c.skin] : null; return (sk && sk.classNames && sk.classNames[cls]) || cls; },
   switchCamp(id) { State.switchCampaign(id); this.go("play"); },
