@@ -146,7 +146,14 @@ const UI = {
     const input = document.getElementById("playInput");
     const who = document.getElementById("playWho").value;
     const text = input.value.trim();
-    if (!text) return;
+    if (!text) {
+      // Champ vide : si la partie n'a pas encore commencé, on lance l'intro ;
+      // sinon on rappelle quoi faire (au lieu de ne "rien" faire).
+      const hasAction = (State.current().chronicle || []).some(e => e.kind === "action");
+      if (!hasAction) { this.introduce(); return; }
+      this.toast("Écris une action, ou tape 🎬 Introduire l'aventure", "warn");
+      return;
+    }
     input.value = ""; this.autogrow(input);
     State.log({ kind: "action", who, text });
     this.renderPlay();
