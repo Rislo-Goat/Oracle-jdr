@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0f0c1e">
+<meta name="description" content="Oracle — ton compagnon de jeu de rôle adaptatif. Un co-MJ IA qui s'adapte à tous les univers, mène la partie en temps réel et retient toute ta campagne.">
+<title>Oracle — Compagnon de Maître du Jeu</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Oracle">
+<link rel="stylesheet" href="css/app.css">
+<style id="oracleCustomStyle"></style>
+</head>
+<body>
+
+<!-- ============ ONBOARDING ============ -->
+<div id="onboarding" class="onboarding hidden">
+  <div class="ob-progress"><div id="obBar" class="ob-progress-bar"></div></div>
+  <div id="obSteps" class="ob-steps"></div>
+</div>
+
+<!-- ============ APP SHELL ============ -->
+<div id="app" class="app hidden">
+
+  <!-- Header -->
+  <header class="hud">
+    <div class="hud-crest" id="hudCrest">🔮</div>
+    <div class="hud-info">
+      <div class="hud-name-row">
+        <span class="hud-name" id="hudCampaign">Nouvelle campagne</span>
+        <span class="hud-badge" id="hudGenre">—</span>
+      </div>
+      <div class="hud-sub">
+        <span id="hudScene" class="hud-scene">Aucune scène</span>
+        <span id="hudSession" class="hud-session">Séance 1</span>
+      </div>
+    </div>
+    <button class="hud-ai" id="hudAiBadge" title="État de l'Oracle IA">🔮</button>
+  </header>
+
+  <!-- Views -->
+  <main id="views" class="views">
+    <section id="view-play"   class="view view-play hidden"></section>
+    <section id="view-heroes" class="view hidden"></section>
+    <section id="view-world"  class="view hidden"></section>
+    <section id="view-dice"   class="view hidden"></section>
+    <section id="view-oracle" class="view view-oracle hidden"></section>
+    <section id="view-table"  class="view hidden"></section>
+  </main>
+
+  <!-- Bottom nav -->
+  <nav class="tabbar">
+    <button class="tab active" data-view="play"><span class="tab-ico">🔥</span><span class="tab-lbl">Partie</span></button>
+    <button class="tab" data-view="heroes"><span class="tab-ico">🛡️</span><span class="tab-lbl">Héros</span></button>
+    <button class="tab" data-view="world"><span class="tab-ico">🗺️</span><span class="tab-lbl">Univers</span></button>
+    <button class="tab" data-view="dice"><span class="tab-ico">🎲</span><span class="tab-lbl">Dés</span></button>
+    <button class="tab" data-view="oracle"><span class="tab-ico">🔮</span><span class="tab-lbl">Oracle</span></button>
+    <button class="tab" data-view="table"><span class="tab-ico">⚙️</span><span class="tab-lbl">Table</span></button>
+  </nav>
+
+  <!-- Toasts + dice overlay -->
+  <div id="toasts" class="toasts"></div>
+  <div id="diceOverlay" class="dice-overlay hidden" onclick="this.classList.add('hidden')">
+    <div class="dice-pop" onclick="event.stopPropagation()">
+      <div class="dice-pop-face" id="dicePopFace">20</div>
+      <div class="dice-pop-formula" id="dicePopFormula"></div>
+      <div class="dice-pop-result" id="dicePopResult"></div>
+      <button class="btn btn-primary btn-block" onclick="document.getElementById('diceOverlay').classList.add('hidden')">Continuer</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/state.js"></script>
+<script src="js/dice.js"></script>
+<script src="js/oracle.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+}
+</script>
+</body>
+</html>

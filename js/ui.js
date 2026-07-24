@@ -1,0 +1,496 @@
+/* ============================================================
+   Oracle — rendu de l'interface (vanilla, zéro dépendance).
+   ============================================================ */
+
+const UI = {
+  view: "play",
+
+  esc(s) { return (s == null ? "" : String(s)).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); },
+  // markdown minimal : **gras**, *italique*, sauts de ligne
+  md(s) {
+    return this.esc(s)
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+      .replace(/(^|[\s(>])_([^_\n]+)_/g, "$1<em>$2</em>")
+      .replace(/^\s*[—-]{2,}\s*$/gm, "<hr>")
+      .replace(/\n/g, "<br>");
+  },
+
+  toast(msg, kind = "") {
+    const box = document.getElementById("toasts");
+    const el = document.createElement("div");
+    el.className = "toast " + kind;
+    el.innerHTML = msg;
+    box.appendChild(el);
+    setTimeout(() => { el.classList.add("show"); }, 10);
+    setTimeout(() => { el.classList.remove("show"); setTimeout(() => el.remove(), 300); }, 2600);
+  },
+
+  /* ---------- Navigation ---------- */
+  go(view) {
+    this.view = view;
+    document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.view === view));
+    document.querySelectorAll(".view").forEach(v => v.classList.add("hidden"));
+    document.getElementById("view-" + view).classList.remove("hidden");
+    this.render();
+    document.getElementById("views").scrollTop = view === "play" ? 999999 : 0;
+  },
+
+  renderHeader() {
+    const c = State.current(); if (!c) return;
+    const g = DATA.GENRES[c.genre] || DATA.GENRES.custom;
+    document.getElementById("hudCrest").textContent = g.ico;
+    document.getElementById("hudCampaign").textContent = c.name;
+    document.getElementById("hudGenre").textContent = g.ico + " " + (g.name.split(" ")[0]);
+    document.getElementById("hudScene").textContent = c.scene && c.scene.title ? "📍 " + c.scene.title : "Aucune scène";
+    document.getElementById("hudSession").textContent = "Séance " + c.session;
+    const st = Oracle.lastStatus;
+    const badge = document.getElementById("hudAiBadge");
+    badge.textContent = st ? (st.mode === "ai" ? "🟢" : "🔴") : "🔮";
+    badge.title = st ? (st.mode === "ai" ? "Oracle IA actif (" + (st.provider || "") + ")" : "Oracle hors-ligne : " + (st.reason || "")) : "Oracle";
+  },
+
+  render() {
+    this.renderHeader();
+    const fn = { play: "renderPlay", heroes: "renderHeroes", world: "renderWorld", dice: "renderDice", oracle: "renderOracle", table: "renderTable" }[this.view];
+    if (fn) this[fn]();
+    State.applyTheme();
+  },
+
+  /* ============================================================
+     PARTIE — le hub temps réel
+     ============================================================ */
+  renderPlay() {
+    const c = State.current();
+    const el = document.getElementById("view-play");
+    const chron = c.chronicle.slice(-60);
+    const feed = chron.length ? chron.map(e => this.chronItem(e)).join("") :
+      `<div class="empty">La partie n'a pas commencé. Pose une scène, ou écris ce que font les joueurs ci-dessous — l'Oracle prend le relais. 🔮</div>`;
+
+    const heroesChips = c.heroes.map(h =>
+      `<button class="mini-hero" onclick="UI.quickHero('${h.id}')">${h.avatar} ${this.esc(h.name.split(" ")[0])} <span class="mini-hp">${h.hp}/${h.maxHp}</span></button>`).join("");
+
+    el.innerHTML = `
+      <div class="scene-banner ${c.scene && c.scene.mood ? "" : "muted-banner"}">
+        <div class="scene-title">${c.scene && c.scene.title ? "📍 " + this.esc(c.scene.title) : "Scène libre"}</div>
+        ${c.scene && c.scene.mood ? `<div class="scene-mood">${this.esc(c.scene.mood)}</div>` : ""}
+      </div>
+      ${c.heroes.length ? `<div class="mini-heroes">${heroesChips}</div>` : ""}
+      <div class="feed" id="feed">${feed}</div>
+      <div class="composer">
+        <div class="chips">
+          <button class="chip" onclick="UI.compose('Décris la scène et l\\'ambiance actuelle avec des détails immersifs.')">🎬 Décris la scène</button>
+          <button class="chip" onclick="UI.compose('Un PNJ intervient. Qui est-ce et que dit-il ?')">💬 Un PNJ parle</button>
+          <button class="chip" onclick="UI.compose('Introduis une complication inattendue, maintenant.')">⚡ Complication</button>
+          <button class="chip" onclick="UI.compose('Le groupe cherche quoi faire ensuite : donne 3 pistes ou accroches.')">🧭 3 pistes</button>
+          <button class="chip" onclick="UI.go('dice')">🎲 Lancer un dé</button>
+        </div>
+        <div class="composer-row">
+          <select id="playWho" class="who-select">
+            <option value="">🎙️ Le MJ / la table</option>
+            ${c.heroes.map(h => `<option value="${this.esc(h.name)}">${h.avatar} ${this.esc(h.name)}</option>`).join("")}
+          </select>
+          <textarea id="playInput" rows="1" placeholder="Ce que font ou choisissent les joueurs…" oninput="UI.autogrow(this)"></textarea>
+          <button class="send-btn" id="playSend" onclick="UI.sendPlay()">▶</button>
+        </div>
+      </div>`;
+    const feedEl = document.getElementById("feed");
+    if (feedEl) feedEl.scrollTop = feedEl.scrollHeight;
+    setTimeout(() => { const f = document.getElementById("feed"); if (f) f.scrollTop = f.scrollHeight; }, 30);
+  },
+
+  chronItem(e) {
+    const time = new Date(e.t).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    if (e.kind === "scene") return `<div class="c-scene">📍 ${this.esc(e.text)}</div>`;
+    if (e.kind === "event") return `<div class="c-event">⚡ ${this.esc(e.text)}</div>`;
+    if (e.kind === "dice") return `<div class="c-dice">🎲 ${this.esc(e.text)}</div>`;
+    if (e.kind === "pnj") return `<div class="c-pnj"><span class="c-pnj-name">${this.esc(e.who)}</span> ${this.esc(e.text)}</div>`;
+    if (e.kind === "action") return `<div class="c-action"><span class="c-who">${this.esc(e.who || "MJ")}</span>${this.md(e.text)}</div>`;
+    if (e.kind === "oracle") return `<div class="c-oracle"><div class="c-oracle-head">🔮 Oracle</div>${this.md(e.text)}${e.fx ? `<div class="c-fx">${e.fx}</div>` : ""}</div>`;
+    return `<div class="c-note">${this.md(e.text)}</div>`;
+  },
+
+  compose(text) { const i = document.getElementById("playInput"); if (i) { i.value = text; this.autogrow(i); i.focus(); } },
+  autogrow(el) { el.style.height = "auto"; el.style.height = Math.min(120, el.scrollHeight) + "px"; },
+
+  async sendPlay() {
+    const input = document.getElementById("playInput");
+    const who = document.getElementById("playWho").value;
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = ""; this.autogrow(input);
+    State.log({ kind: "action", who, text });
+    this.renderPlay();
+    await this.runOracle(text, "play", who);
+  },
+
+  async quickHero(id) { this.go("heroes"); setTimeout(() => this.editHero(id), 50); },
+
+  // Envoie à l'Oracle, applique directives, log la réponse, gère les jets.
+  async runOracle(text, mode, who) {
+    const btn = document.getElementById(mode === "play" ? "playSend" : "oracleSend");
+    if (btn) { btn.disabled = true; btn.textContent = "…"; }
+    this.log_thinking(mode);
+    const prompt = who ? `[${who}] ${text}` : text;
+    let raw = await Oracle.ask(prompt, mode);
+    // jets demandés
+    const { text: t1, rolls } = Oracle.extractRolls(raw);
+    const { clean, effects } = Oracle.applyDirectives(t1);
+    this.remove_thinking();
+    const fx = effects.length ? effects.join(" · ") : "";
+    if (mode === "play") State.log({ kind: "oracle", text: clean, fx });
+    else { State.current().chat.push({ kind: "oracle", text: clean, t: Date.now() }); State.save(); }
+    if (btn) { btn.disabled = false; btn.textContent = mode === "play" ? "▶" : "▶"; }
+    // exécute les jets demandés par l'Oracle
+    for (const r of rolls) {
+      const c = State.current();
+      const h = State.heroByName(r.who);
+      let formula = r.formula || (DATA.DICE_SYSTEMS[c.system] || {}).formula || "1d20";
+      const dc = r.dc || (DATA.DICE_SYSTEMS[c.system] || {}).defaultDC;
+      const res = Dice.check(formula, dc, c.system);
+      Dice.show(res, (r.who ? r.who + " · " : "") + (r.skill || "Jet"));
+      State.log({ kind: "dice", text: `${r.who || ""} ${r.skill || ""} : ${res.detail} = ${res.total} → ${res.outcome}` });
+    }
+    if (mode === "play") this.renderPlay(); else this.renderOracle();
+    this.renderHeader();
+  },
+
+  log_thinking(mode) {
+    const feed = document.getElementById(mode === "play" ? "feed" : "oracleFeed");
+    if (!feed) return;
+    const d = document.createElement("div");
+    d.className = "c-oracle thinking"; d.id = "thinkingBubble";
+    d.innerHTML = `<div class="c-oracle-head">🔮 Oracle</div><span class="dots"><i></i><i></i><i></i></span>`;
+    feed.appendChild(d); feed.scrollTop = feed.scrollHeight;
+  },
+  remove_thinking() { const t = document.getElementById("thinkingBubble"); if (t) t.remove(); },
+
+  /* ============================================================
+     HÉROS
+     ============================================================ */
+  renderHeroes() {
+    const c = State.current();
+    const el = document.getElementById("view-heroes");
+    const cards = c.heroes.map(h => {
+      const hpPct = Math.round((h.hp / Math.max(1, h.maxHp)) * 100);
+      const stats = Object.entries(h.stats || {}).map(([k, v]) => `<span class="stat-pill">${this.esc(k.slice(0, 3))} <b>${v >= 0 ? "+" : ""}${v}</b></span>`).join("");
+      return `<div class="card hero-card" onclick="UI.editHero('${h.id}')">
+        <div class="hero-top">
+          <div class="hero-ava">${h.avatar}</div>
+          <div class="hero-id">
+            <div class="hero-name">${this.esc(h.name)}</div>
+            <div class="hero-concept">${this.esc(h.concept || "—")}${h.player ? " · <span class='hero-player'>" + this.esc(h.player) + "</span>" : ""}</div>
+          </div>
+          <div class="hero-armor">🛡️ ${h.armor}</div>
+        </div>
+        <div class="hp-bar"><div class="hp-fill ${hpPct < 30 ? "low" : ""}" style="width:${hpPct}%"></div><span class="hp-txt">${h.hp} / ${h.maxHp} PV</span></div>
+        ${stats ? `<div class="stat-row">${stats}</div>` : ""}
+        ${h.conditions && h.conditions.length ? `<div class="cond-row">${h.conditions.map(x => `<span class="cond">${this.esc(x)}</span>`).join("")}</div>` : ""}
+        ${h.gear && h.gear.length ? `<div class="gear-row">🎒 ${h.gear.map(x => this.esc(x)).join(", ")}</div>` : ""}
+      </div>`;
+    }).join("");
+    el.innerHTML = `
+      <div class="section-head"><h2>🛡️ Les héros</h2><span class="count">${c.heroes.length}</span></div>
+      ${c.heroes.length ? cards : `<div class="empty">Aucun héros. Ajoute les personnages de tes 4 joueurs.</div>`}
+      <button class="btn btn-primary btn-block" onclick="UI.newHero()">＋ Ajouter un héros</button>`;
+  },
+
+  newHero() { const h = State.addHero(); this.renderHeroes(); this.editHero(h.id); },
+
+  editHero(id) {
+    const c = State.current();
+    const h = State.hero(id); if (!h) return;
+    const el = document.getElementById("view-heroes");
+    const avatars = DATA.AVATARS.map(a => `<button class="ava-opt ${a === h.avatar ? "sel" : ""}" onclick="UI.setHeroField('${id}','avatar','${a}')">${a}</button>`).join("");
+    const statInputs = c.attrs.map(a =>
+      `<label class="stat-edit">${this.esc(a)}<input type="number" value="${h.stats[a] || 0}" onchange="UI.setHeroStat('${id}','${this.esc(a)}',this.value)"></label>`).join("");
+    el.innerHTML = `
+      <button class="btn btn-ghost btn-sm" onclick="UI.renderHeroes()">← Retour</button>
+      <div class="card">
+        <div class="ava-picker">${avatars}</div>
+        <label class="f">Nom du personnage<input value="${this.esc(h.name)}" onchange="UI.setHeroField('${id}','name',this.value)"></label>
+        <label class="f">Joueur (à la table)<input value="${this.esc(h.player)}" placeholder="ex : Loris" onchange="UI.setHeroField('${id}','player',this.value)"></label>
+        <label class="f">Concept / classe / rôle<input value="${this.esc(h.concept)}" placeholder="ex : Rôdeur elfe, Netrunner…" onchange="UI.setHeroField('${id}','concept',this.value)"></label>
+        <div class="two">
+          <label class="f">PV actuels<input type="number" value="${h.hp}" onchange="UI.setHeroField('${id}','hp',this.value)"></label>
+          <label class="f">PV max<input type="number" value="${h.maxHp}" onchange="UI.setHeroField('${id}','maxHp',this.value)"></label>
+          <label class="f">Défense<input type="number" value="${h.armor}" onchange="UI.setHeroField('${id}','armor',this.value)"></label>
+          <label class="f">XP<input type="number" value="${h.xp}" onchange="UI.setHeroField('${id}','xp',this.value)"></label>
+        </div>
+        <h3 class="mini-h3">Attributs (${this.esc(c.system)})</h3>
+        <div class="stats-edit">${statInputs}</div>
+        <label class="f">Capacités spéciales<textarea rows="2" onchange="UI.setHeroField('${id}','abilities',this.value)">${this.esc(h.abilities)}</textarea></label>
+        <label class="f">Inventaire (un objet par ligne)<textarea rows="3" onchange="UI.setHeroGear('${id}',this.value)">${(h.gear || []).map(x => this.esc(x)).join("\n")}</textarea></label>
+        <label class="f">États / conditions (virgules)<input value="${(h.conditions || []).map(x => this.esc(x)).join(", ")}" onchange="UI.setHeroCond('${id}',this.value)"></label>
+        <label class="f">Liens / relations<input value="${this.esc(h.bonds)}" onchange="UI.setHeroField('${id}','bonds',this.value)"></label>
+        <label class="f">Notes<textarea rows="2" onchange="UI.setHeroField('${id}','notes',this.value)">${this.esc(h.notes)}</textarea></label>
+        <button class="btn btn-danger btn-sm" onclick="UI.delHero('${id}')">Supprimer ce héros</button>
+      </div>`;
+  },
+  setHeroField(id, f, v) { const h = State.hero(id); if (!h) return; if (["hp", "maxHp", "armor", "xp"].includes(f)) v = parseInt(v, 10) || 0; h[f] = v; State.save(); if (f === "avatar") this.editHero(id); this.renderHeader(); },
+  setHeroStat(id, k, v) { const h = State.hero(id); h.stats[k] = parseInt(v, 10) || 0; State.save(); },
+  setHeroGear(id, v) { const h = State.hero(id); h.gear = v.split("\n").map(s => s.trim()).filter(Boolean); State.save(); },
+  setHeroCond(id, v) { const h = State.hero(id); h.conditions = v.split(",").map(s => s.trim()).filter(Boolean); State.save(); },
+  delHero(id) { if (confirm("Supprimer ce héros ?")) { State.removeHero(id); this.renderHeroes(); } },
+
+  /* ============================================================
+     UNIVERS
+     ============================================================ */
+  renderWorld() {
+    const c = State.current();
+    const el = document.getElementById("view-world");
+    const g = DATA.GENRES[c.genre] || DATA.GENRES.custom;
+    const list = (arr, render, empty) => arr.length ? arr.map(render).join("") : `<div class="empty-sm">${empty}</div>`;
+    el.innerHTML = `
+      <div class="card">
+        <h3>🌍 La campagne</h3>
+        <div class="pitch-line"><b>${g.ico} ${this.esc(g.name)}</b> · ${this.esc((DATA.TONES[c.tone] || {}).name || c.tone)}</div>
+        <label class="f">Pitch<textarea rows="3" onchange="UI.setCampField('pitch',this.value)">${this.esc(c.pitch)}</textarea></label>
+        <label class="f">Enjeu central<textarea rows="2" onchange="UI.setCampField('stakes',this.value)">${this.esc(c.stakes)}</textarea></label>
+      </div>
+
+      <div class="card">
+        <h3>🎯 Quêtes & objectifs <button class="add-x" onclick="UI.addWorld('quest')">＋</button></h3>
+        ${list(c.quests, q => `<div class="wrow ${q.state === "faite" ? "done" : ""}">
+          <button class="wcheck" onclick="UI.toggleQuest('${q.id}')">${q.state === "faite" ? "✔" : "○"}</button>
+          <div class="wbody"><b>${this.esc(q.title)}</b>${q.desc ? "<div class='wdesc'>" + this.esc(q.desc) + "</div>" : ""}</div>
+          <button class="wdel" onclick="UI.delWorld('quests','${q.id}')">✕</button></div>`, "Aucune quête. L'Oracle en créera pendant la partie.")}
+      </div>
+
+      <div class="card">
+        <h3>💬 PNJ <button class="add-x" onclick="UI.addWorld('npc')">＋</button></h3>
+        ${list(c.npcs, n => `<div class="wrow"><div class="wbody"><b>${this.esc(n.name)}</b>${n.role ? " — " + this.esc(n.role) : ""}${n.trait ? "<div class='wdesc'>" + this.esc(n.trait) + "</div>" : ""}${n.place ? "<span class='wtag'>📍 " + this.esc(n.place) + "</span>" : ""}${n.attitude ? "<span class='wtag'>" + this.esc(n.attitude) + "</span>" : ""}</div><button class="wdel" onclick="UI.delWorld('npcs','${n.id}')">✕</button></div>`, "Aucun PNJ pour l'instant.")}
+      </div>
+
+      <div class="card">
+        <h3>🗺️ Lieux <button class="add-x" onclick="UI.addWorld('place')">＋</button></h3>
+        ${list(c.places, p => `<div class="wrow"><div class="wbody"><b>${this.esc(p.name)}</b>${p.desc ? "<div class='wdesc'>" + this.esc(p.desc) + "</div>" : ""}</div><button class="wdel" onclick="UI.delWorld('places','${p.id}')">✕</button></div>`, "Aucun lieu.")}
+      </div>
+
+      <div class="card">
+        <h3>🐉 Bestiaire <button class="add-x" onclick="UI.addWorld('beast')">＋</button></h3>
+        ${list(c.bestiary, b => `<div class="wrow"><div class="wbody"><b>${this.esc(b.name)}</b>${b.hp ? " <span class='wtag'>PV " + this.esc(b.hp) + "</span>" : ""}${b.threat ? "<span class='wtag'>" + this.esc(b.threat) + "</span>" : ""}${b.trait ? "<div class='wdesc'>" + this.esc(b.trait) + "</div>" : ""}</div><button class="wdel" onclick="UI.delWorld('bestiary','${b.id}')">✕</button></div>`, "Aucune créature.")}
+      </div>
+
+      <div class="card">
+        <h3>🧠 Canon / mémoire de l'Oracle</h3>
+        <div class="hint">Les faits établis que l'Oracle retiendra pour toujours. Il en ajoute automatiquement pendant la partie.</div>
+        ${list(c.lore, (l, i) => `<div class="lore-row"><span>• ${this.esc(l)}</span><button class="wdel" onclick="UI.delLore(${i})">✕</button></div>`, "Rien encore.")}
+        <div class="two-inline"><input id="loreInput" placeholder="Ajouter un fait canon…"><button class="btn btn-ghost btn-sm" onclick="UI.addLore()">Ajouter</button></div>
+      </div>
+
+      <div class="card seed-card">
+        <h3>📥 Nourrir l'Oracle</h3>
+        <div class="hint">Colle ici <b>tes notes ou tes conversations passées</b> sur cette campagne (idées, univers, historique, discussions RP). L'Oracle les traitera comme du canon et s'en servira dans chaque réponse.</div>
+        <textarea rows="6" id="seedInput" placeholder="Colle tes notes / anciennes conversations sur le jeu de rôle ici…">${this.esc(c.seed)}</textarea>
+        <button class="btn btn-primary btn-block" onclick="UI.saveSeed()">💾 Enregistrer la matière</button>
+      </div>`;
+  },
+  setCampField(f, v) { const c = State.current(); c[f] = v; State.save(); this.renderHeader(); },
+  saveSeed() { const c = State.current(); c.seed = document.getElementById("seedInput").value; State.save(); this.toast("Matière enregistrée — l'Oracle s'en souviendra 🧠", "ok"); },
+  addLore() { const v = document.getElementById("loreInput").value.trim(); if (v) { State.remember(v); this.renderWorld(); } },
+  delLore(i) { const c = State.current(); c.lore.splice(i, 1); State.save(); this.renderWorld(); },
+  toggleQuest(id) { const q = State.current().quests.find(x => x.id === id); q.state = q.state === "faite" ? "active" : "faite"; State.save(); this.renderWorld(); },
+  delWorld(coll, id) { const c = State.current(); c[coll] = c[coll].filter(x => x.id !== id); State.save(); this.renderWorld(); },
+  addWorld(kind) {
+    const c = State.current();
+    if (kind === "quest") { const t = prompt("Titre de la quête ?"); if (t) c.quests.push({ id: "q_" + Math.random().toString(36).slice(2, 7), title: t, desc: "", state: "active" }); }
+    if (kind === "npc") { const t = prompt("Nom du PNJ ?"); if (t) c.npcs.push({ id: "n_" + Math.random().toString(36).slice(2, 7), name: t, role: prompt("Rôle ? (optionnel)") || "" }); }
+    if (kind === "place") { const t = prompt("Nom du lieu ?"); if (t) c.places.push({ id: "l_" + Math.random().toString(36).slice(2, 7), name: t, desc: prompt("Description ? (optionnel)") || "" }); }
+    if (kind === "beast") { const t = prompt("Nom de la créature ?"); if (t) c.bestiary.push({ id: "b_" + Math.random().toString(36).slice(2, 7), name: t, hp: prompt("PV ? (optionnel)") || "", threat: "", trait: "" }); }
+    State.save(); this.renderWorld();
+  },
+
+  /* ============================================================
+     DÉS
+     ============================================================ */
+  renderDice() {
+    const c = State.current();
+    const el = document.getElementById("view-dice");
+    const sys = DATA.DICE_SYSTEMS[c.system] || DATA.DICE_SYSTEMS.d20;
+    const quick = ["1d20", "1d12", "1d10", "1d8", "1d6", "1d4", "1d100", "2d6", "3d6", "4d6k3"];
+    el.innerHTML = `
+      <div class="card">
+        <h3>🎲 Jet rapide</h3>
+        <div class="dice-grid">${quick.map(f => `<button class="dice-btn" onclick="UI.quickRoll('${f}')">${f}</button>`).join("")}</div>
+      </div>
+      <div class="card">
+        <h3>✍️ Formule libre</h3>
+        <div class="two-inline"><input id="diceFormula" value="1d20+3" placeholder="ex : 2d6+1, 4d6k3"><button class="btn btn-primary" onclick="UI.rollFormula()">Lancer</button></div>
+        <div class="adv-row">
+          <label class="chk"><input type="checkbox" id="advChk"> Avantage</label>
+          <label class="chk"><input type="checkbox" id="disChk"> Désavantage</label>
+        </div>
+      </div>
+      <div class="card">
+        <h3>🎯 Jet de compétence <span class="h3-note">${this.esc(sys.name)}</span></h3>
+        <div class="hint">${this.esc(sys.help)}</div>
+        <div class="two">
+          <label class="f">Héros<select id="ckHero">${c.heroes.map(h => `<option value="${this.esc(h.name)}">${h.avatar} ${this.esc(h.name)}</option>`).join("") || "<option>—</option>"}</select></label>
+          <label class="f">Compétence<input id="ckSkill" placeholder="ex : Discrétion"></label>
+          <label class="f">Formule<input id="ckFormula" value="${sys.formula}"></label>
+          <label class="f">${this.esc(sys.target)}<input type="number" id="ckDC" value="${sys.defaultDC}"></label>
+        </div>
+        <button class="btn btn-primary btn-block" onclick="UI.rollCheck()">🎯 Jet de compétence</button>
+      </div>`;
+  },
+  quickRoll(f) { const r = Dice.roll(f); Dice.show(r); State.log({ kind: "dice", text: `${f} = ${r.total} (${r.detail})` }); this.toast(`🎲 ${f} → <b>${r.total}</b>`); },
+  rollFormula() {
+    const f = document.getElementById("diceFormula").value;
+    const r = Dice.roll(f, { adv: document.getElementById("advChk").checked, dis: document.getElementById("disChk").checked });
+    Dice.show(r); State.log({ kind: "dice", text: `${f} = ${r.total} (${r.detail})` });
+  },
+  rollCheck() {
+    const c = State.current();
+    const who = document.getElementById("ckHero").value;
+    const skill = document.getElementById("ckSkill").value;
+    const formula = document.getElementById("ckFormula").value;
+    const dc = parseInt(document.getElementById("ckDC").value, 10);
+    const res = Dice.check(formula, dc, c.system);
+    Dice.show(res, (who ? who + " · " : "") + (skill || "Jet"));
+    State.log({ kind: "dice", text: `${who} ${skill} : ${res.detail} = ${res.total} → ${res.outcome}` });
+  },
+
+  /* ============================================================
+     ORACLE (atelier)
+     ============================================================ */
+  renderOracle() {
+    const c = State.current();
+    const el = document.getElementById("view-oracle");
+    const feed = c.chat.length ? c.chat.map(m => m.kind === "oracle"
+      ? `<div class="c-oracle"><div class="c-oracle-head">🔮 Oracle</div>${this.md(m.text)}</div>`
+      : `<div class="c-action"><span class="c-who">MJ</span>${this.md(m.text)}</div>`).join("")
+      : `<div class="empty">🔮 Atelier de l'Oracle — demande-lui d'improviser un PNJ, un lieu, un donjon, un rebondissement, un nom, une énigme, ou pose « et si… ». Ce qu'il crée peut être enregistré direct dans ta campagne.</div>`;
+    el.innerHTML = `
+      <div class="feed" id="oracleFeed">${feed}</div>
+      <div class="composer">
+        <div class="chips">
+          <button class="chip" onclick="UI.composeOracle('Improvise-moi un PNJ marquant pour cette campagne, et enregistre-le.')">💬 Un PNJ</button>
+          <button class="chip" onclick="UI.composeOracle('Génère un lieu intrigant à explorer, avec 3 détails et un secret. Enregistre-le.')">🗺️ Un lieu</button>
+          <button class="chip" onclick="UI.composeOracle('Propose 3 rebondissements possibles pour la suite de l\\'histoire.')">⚡ Rebondissements</button>
+          <button class="chip" onclick="UI.composeOracle('Donne-moi 6 noms adaptés à l\\'univers.')">🔤 Des noms</button>
+          <button class="chip" onclick="UI.composeOracle('Improvise une rencontre / un combat équilibré pour le groupe. Ajoute la créature au bestiaire.')">🐉 Une rencontre</button>
+        </div>
+        <div class="composer-row">
+          <textarea id="oracleInput" rows="1" placeholder="Demande à l'Oracle (préparation, impro, idées)…" oninput="UI.autogrow(this)"></textarea>
+          <button class="send-btn" id="oracleSend" onclick="UI.sendOracle()">▶</button>
+        </div>
+      </div>`;
+    const f = document.getElementById("oracleFeed"); if (f) f.scrollTop = f.scrollHeight;
+  },
+  composeOracle(t) { const i = document.getElementById("oracleInput"); i.value = t; this.autogrow(i); i.focus(); },
+  async sendOracle() {
+    const input = document.getElementById("oracleInput");
+    const text = input.value.trim(); if (!text) return;
+    input.value = ""; this.autogrow(input);
+    State.current().chat.push({ kind: "action", text, t: Date.now() }); State.save();
+    this.renderOracle();
+    await this.runOracle(text, "oracle", "");
+  },
+
+  /* ============================================================
+     TABLE (réglages)
+     ============================================================ */
+  renderTable() {
+    const c = State.current();
+    const d = State.data;
+    const el = document.getElementById("view-table");
+    const ai = d.ai, be = d.backend;
+    const prov = DATA.AI_PROVIDERS[ai.provider] || {};
+    el.innerHTML = `
+      <div class="card">
+        <h3>🎭 Campagne courante</h3>
+        <label class="f">Nom<input value="${this.esc(c.name)}" onchange="UI.setCampField('name',this.value)"></label>
+        <div class="two">
+          <label class="f">Univers<select onchange="UI.changeGenre(this.value)">${Object.entries(DATA.GENRES).map(([k, g]) => `<option value="${k}" ${k === c.genre ? "selected" : ""}>${g.ico} ${g.name}</option>`).join("")}</select></label>
+          <label class="f">Ton<select onchange="UI.setCampField('tone',this.value)">${Object.entries(DATA.TONES).map(([k, t]) => `<option value="${k}" ${k === c.tone ? "selected" : ""}>${t.ico} ${t.name}</option>`).join("")}</select></label>
+        </div>
+        <div class="two">
+          <label class="f">Système de dés<select onchange="UI.setCampField('system',this.value)">${Object.entries(DATA.DICE_SYSTEMS).map(([k, s]) => `<option value="${k}" ${k === c.system ? "selected" : ""}>${s.name}</option>`).join("")}</select></label>
+          <label class="f">Séance n°<input type="number" value="${c.session}" onchange="UI.setCampField('session',parseInt(this.value)||1)"></label>
+        </div>
+        <label class="f">Attributs (virgules, s'appliquent aux nouveaux héros)<input value="${(c.attrs || []).map(a => this.esc(a)).join(", ")}" onchange="UI.setAttrs(this.value)"></label>
+      </div>
+
+      <div class="card">
+        <h3>🌌 Ambiance visuelle</h3>
+        <div class="theme-grid">${Object.entries(DATA.THEMES).map(([k, t]) => `<button class="theme-opt ${k === c.theme ? "sel" : ""}" onclick="UI.setTheme('${k}')">${t.ico}<span>${t.name}</span></button>`).join("")}</div>
+        <label class="f">Couleur d'accent<input type="color" value="${c.accent || '#6c5ce7'}" onchange="UI.setCampField('accent',this.value)"></label>
+        <button class="btn btn-ghost btn-sm" onclick="UI.setCampField('accent','');UI.setStyleReset()">↺ Réinitialiser le style</button>
+      </div>
+
+      <div class="card">
+        <h3>🔮 Oracle IA</h3>
+        <div class="hint">L'Oracle mène la narration. Le plus simple : ton backend Railway (aucune clé à coller). Sinon une clé gratuite (Groq / Gemini).</div>
+        <label class="f">Fournisseur<select id="aiProv" onchange="UI.setAIProvider(this.value)">${Object.entries(DATA.AI_PROVIDERS).map(([k, p]) => `<option value="${k}" ${k === ai.provider ? "selected" : ""}>${p.name}</option>`).join("")}</select></label>
+        ${ai.provider === "backend" ? `
+          <label class="f">URL du backend<input value="${this.esc(be.url)}" onchange="UI.setBackend('url',this.value)" placeholder="https://…up.railway.app"></label>
+          <label class="f">Token (si défini sur Railway)<input value="${this.esc(be.token)}" onchange="UI.setBackend('token',this.value)" placeholder="optionnel"></label>
+          <button class="btn btn-ghost btn-sm" onclick="UI.testBackend()">🔌 Tester la connexion</button>
+        ` : `
+          <label class="f">Clé API ${prov.needsKey ? "" : ""}<input type="password" value="${this.esc(ai.key)}" onchange="UI.setAIKey(this.value)" placeholder="colle ta clé…"></label>
+          <label class="f">Modèle<input value="${this.esc(ai.model || prov.model || '')}" onchange="UI.setAIModel(this.value)"></label>
+          ${prov.url ? `<a class="link" href="${prov.url}" target="_blank">↗ Obtenir une clé</a>` : ""}
+          <div class="hint">Ta clé reste sur ton téléphone.</div>
+        `}
+      </div>
+
+      <div class="card">
+        <h3>👥 Joueurs à la table</h3>
+        <div class="hint">Les 4 (ou plus) personnes réelles. Sert à relier les héros aux joueurs.</div>
+        <textarea rows="4" id="playersInput" placeholder="Un joueur par ligne">${(d.players || []).map(p => this.esc(p)).join("\n")}</textarea>
+        <button class="btn btn-ghost btn-sm" onclick="UI.savePlayers()">Enregistrer</button>
+      </div>
+
+      <div class="card">
+        <h3>📚 Mes campagnes</h3>
+        ${d.campaigns.map(cc => `<div class="camp-row ${cc.id === d.currentId ? "cur" : ""}">
+          <button class="camp-pick" onclick="UI.switchCamp('${cc.id}')">${(DATA.GENRES[cc.genre] || {}).ico || "🎲"} ${this.esc(cc.name)}${cc.id === d.currentId ? " ✓" : ""}</button>
+          ${d.campaigns.length > 1 ? `<button class="wdel" onclick="UI.delCamp('${cc.id}')">✕</button>` : ""}
+        </div>`).join("")}
+        <button class="btn btn-primary btn-block" onclick="UI.newCampaignFlow()">＋ Nouvelle campagne</button>
+      </div>
+
+      <div class="card">
+        <h3>💾 Données</h3>
+        <button class="btn btn-ghost btn-block" onclick="UI.exportData()">⬇️ Exporter (sauvegarde JSON)</button>
+        <label class="btn btn-ghost btn-block" style="cursor:pointer">⬆️ Importer une sauvegarde<input type="file" accept="application/json" style="display:none" onchange="UI.importData(this)"></label>
+        <button class="btn btn-danger btn-block" onclick="UI.resetAll()">🗑️ Tout effacer</button>
+      </div>
+      <div class="foot">Oracle · compagnon de jeu de rôle · v1 — tes données restent sur ton appareil.</div>`;
+  },
+  changeGenre(v) { const c = State.current(); c.genre = v; const g = DATA.GENRES[v]; if (g) { if (!c.pitch) c.pitch = g.pitch; c.attrs = g.attrs.slice(); c.system = g.system; c.theme = g.theme; } State.save(); this.renderTable(); this.renderHeader(); State.applyTheme(); },
+  setAttrs(v) { const c = State.current(); c.attrs = v.split(",").map(s => s.trim()).filter(Boolean); State.save(); },
+  setTheme(k) { const c = State.current(); c.theme = k; State.save(); State.applyTheme(); this.renderTable(); this.renderHeader(); },
+  setStyleReset() { const c = State.current(); c.style = {}; c.customCss = ""; State.save(); State.applyTheme(); this.renderTable(); },
+  setAIProvider(v) { State.data.ai.provider = v; State.data.ai.model = DATA.AI_PROVIDERS[v].model || ""; State.save(); this.renderTable(); },
+  setAIKey(v) { State.data.ai.key = v.trim(); State.save(); },
+  setAIModel(v) { State.data.ai.model = v.trim(); State.save(); },
+  setBackend(f, v) { State.data.backend[f] = v.trim(); State.save(); },
+  async testBackend() {
+    const be = State.data.backend;
+    const url = (be.url || location.origin).replace(/\/+$/, "") + "/api/oracle/ping";
+    this.toast("Test en cours…");
+    try {
+      const r = await fetch(url); const j = await r.json();
+      if (j.ok) this.toast(`✅ Backend OK — fournisseurs : ${(j.providers || []).join(", ") || "aucun !"}`, "ok");
+      else this.toast("⚠️ " + (j.error || "réponse inattendue"), "warn");
+    } catch (e) { this.toast("❌ Injoignable : " + e.message, "warn"); }
+  },
+  savePlayers() { State.data.players = document.getElementById("playersInput").value.split("\n").map(s => s.trim()).filter(Boolean); State.save(); this.toast("Joueurs enregistrés", "ok"); },
+  switchCamp(id) { State.switchCampaign(id); this.go("play"); },
+  delCamp(id) { if (confirm("Supprimer cette campagne définitivement ?")) { State.deleteCampaign(id); this.renderTable(); this.renderHeader(); } },
+  newCampaignFlow() { App.startOnboarding(true); },
+  exportData() {
+    const blob = new Blob([State.exportJSON()], { type: "application/json" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = "oracle-sauvegarde-" + new Date().toISOString().slice(0, 10) + ".json"; a.click();
+  },
+  importData(inp) {
+    const file = inp.files[0]; if (!file) return;
+    const rd = new FileReader();
+    rd.onload = () => { try { State.importJSON(rd.result); this.toast("Sauvegarde importée ✅", "ok"); this.go("play"); } catch (e) { this.toast("❌ " + e.message, "warn"); } };
+    rd.readAsText(file);
+  },
+  resetAll() { if (confirm("Effacer TOUTES les campagnes et réglages ?")) { localStorage.removeItem(State.KEY); location.reload(); } },
+};
