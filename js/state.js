@@ -141,10 +141,34 @@ const State = {
   },
 
   /* ---------- Héros ---------- */
+  // Applique le profil recommandé de la classe (caracs, compétences, sauvegardes,
+  // équipement, sorts) + les bonus de race, puis recalcule PV/CA. Rend le perso
+  // jouable en un coup, sans laisser de fiche vide.
+  applyBuild(h) {
+    const bd = DND.BUILDS[h.cls];
+    if (bd) {
+      h.abilities = Object.assign({ FOR: 10, DEX: 10, CON: 10, INT: 10, SAG: 10, CHA: 10 }, bd.abilities);
+      const rb = DND.RACE_BONUS[h.race];
+      if (rb) Object.entries(rb).forEach(([k, v]) => {
+        if (k === "all") DND.ABILITY_ORDER.forEach(a => h.abilities[a] += v);
+        else h.abilities[k] = (h.abilities[k] || 10) + v;
+      });
+      h.skillProfs = bd.skills.slice();
+      h.gear = (bd.gear || []).slice();
+      h.spells = bd.spells || "";
+      h.feats = bd.feats || "";
+    }
+    const cl = DND.CLASSES[h.cls];
+    if (cl && (!h.saveProfs || !h.saveProfs.length)) h.saveProfs = cl.saves.slice();
+    h._hpTouched = false;
+    this.applyClassDefaults(h);
+    return h;
+  },
+
   addHero(over) {
     const c = this.current(); if (!c) return null;
     const h = this.blankHero(over);
-    if (c.system === "dnd5e") this.applyClassDefaults(h);
+    if (c.system === "dnd5e") this.applyBuild(h);
     else (c.attrs || []).forEach(a => { if (h.stats[a] === undefined) h.stats[a] = 0; });
     c.heroes.push(h);
     this.save();

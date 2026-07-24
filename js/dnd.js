@@ -71,6 +71,31 @@ const DND = {
   /* ---------- Génération de caracs ---------- */
   STANDARD_ARRAY: [15, 14, 13, 12, 10, 8],
 
+  /* ---------- Bonus de caractéristique de race (5e) ---------- */
+  RACE_BONUS: {
+    "Humain": { all: 1 }, "Elfe": { DEX: 2 }, "Haut-elfe": { DEX: 2, INT: 1 },
+    "Nain": { CON: 2 }, "Nain des collines": { CON: 2, SAG: 1 },
+    "Halfelin": { DEX: 2 }, "Halfelin pied-léger": { DEX: 2, CHA: 1 },
+    "Demi-elfe": { CHA: 2, DEX: 1, CON: 1 }, "Demi-orc": { FOR: 2, CON: 1 },
+    "Drakéide": { FOR: 2, CHA: 1 }, "Gnome": { INT: 2 }, "Tieffelin": { CHA: 2, INT: 1 },
+  },
+
+  /* ---------- Profils recommandés par classe (build express, valeurs 5e) ---------- */
+  BUILDS: {
+    "Barbare":     { abilities: { FOR: 15, CON: 14, DEX: 13, SAG: 12, CHA: 10, INT: 8 }, skills: ["Athlétisme", "Intimidation"], gear: ["Hache à deux mains", "2 hachettes", "Sac d'explorateur"], feats: "Rage, Défense sans armure (CA = 10 + DEX + CON)", spells: "" },
+    "Barde":       { abilities: { CHA: 15, DEX: 14, CON: 13, INT: 12, SAG: 10, FOR: 8 }, skills: ["Persuasion", "Représentation", "Tromperie"], gear: ["Rapière", "Instrument", "Armure de cuir", "Dague"], feats: "Inspiration bardique (d6)", spells: "Tours : Illusion mineure, Moquerie vicieuse. Niv.1 : Soin des blessures, Charme-personne, Image silencieuse" },
+    "Clerc":       { abilities: { SAG: 15, CON: 14, FOR: 13, CHA: 12, DEX: 10, INT: 8 }, skills: ["Médecine", "Perspicacité"], gear: ["Masse d'armes", "Bouclier", "Cotte de mailles", "Symbole sacré"], feats: "Canalisation d'énergie divine", spells: "Tours : Flamme sacrée, Résistance. Niv.1 : Soin des blessures, Bénédiction, Mot de guérison" },
+    "Druide":      { abilities: { SAG: 15, CON: 14, DEX: 13, INT: 12, CHA: 10, FOR: 8 }, skills: ["Nature", "Perception"], gear: ["Bâton", "Armure de cuir", "Serpe", "Sacoche à composantes"], feats: "Druidique, Forme sauvage (niv.2)", spells: "Tours : Gourdin magique, Druidisme. Niv.1 : Soin des blessures, Enchevêtrement, Baies nourricières" },
+    "Ensorceleur": { abilities: { CHA: 15, CON: 14, DEX: 13, INT: 12, SAG: 10, FOR: 8 }, skills: ["Arcanes", "Tromperie"], gear: ["Dague", "Focaliseur arcanique", "Sac d'explorateur"], feats: "Origine magique", spells: "Tours : Trait de feu, Prestidigitation, Lumière. Niv.1 : Projectile magique, Bouclier" },
+    "Guerrier":    { abilities: { FOR: 15, CON: 14, DEX: 13, SAG: 12, INT: 10, CHA: 8 }, skills: ["Athlétisme", "Perception"], gear: ["Épée longue", "Bouclier", "Cotte de mailles", "Arbalète légère"], feats: "Style de combat, Second souffle (1d10 + niveau)", spells: "" },
+    "Magicien":    { abilities: { INT: 15, CON: 14, DEX: 13, SAG: 12, CHA: 10, FOR: 8 }, skills: ["Arcanes", "Histoire"], gear: ["Bâton", "Grimoire", "Sacoche à composantes"], feats: "Récupération arcanique", spells: "Tours : Trait de feu, Rayon de givre, Lumière. Niv.1 : Projectile magique, Armure du mage, Bouclier, Détection de la magie" },
+    "Moine":       { abilities: { DEX: 15, SAG: 14, CON: 13, FOR: 12, INT: 10, CHA: 8 }, skills: ["Acrobaties", "Discrétion"], gear: ["Bâton", "10 fléchettes", "Sac d'explorateur"], feats: "Arts martiaux (1d4 à mains nues), Défense sans armure (CA = 10 + DEX + SAG)", spells: "" },
+    "Occultiste":  { abilities: { CHA: 15, CON: 14, DEX: 13, SAG: 12, INT: 10, FOR: 8 }, skills: ["Arcanes", "Intimidation"], gear: ["Armure de cuir", "Dague", "Focaliseur arcanique"], feats: "Protecteur outre-monde", spells: "Tours : Explosion occulte, Prestidigitation. Niv.1 (Pacte) : Sortilège de fléau, Charme-personne" },
+    "Paladin":     { abilities: { FOR: 15, CHA: 14, CON: 13, SAG: 12, DEX: 10, INT: 8 }, skills: ["Athlétisme", "Intimidation"], gear: ["Épée longue", "Bouclier", "Cotte de mailles", "Symbole sacré"], feats: "Sens divin, Imposition des mains (réserve 5 PV)", spells: "" },
+    "Rôdeur":      { abilities: { DEX: 15, SAG: 14, CON: 13, FOR: 12, INT: 10, CHA: 8 }, skills: ["Survie", "Perception", "Discrétion"], gear: ["Arc long + 20 flèches", "2 épées courtes", "Armure de cuir"], feats: "Ennemi juré, Explorateur né", spells: "" },
+    "Roublard":    { abilities: { DEX: 15, CON: 14, INT: 13, SAG: 12, CHA: 10, FOR: 8 }, skills: ["Discrétion", "Acrobaties", "Perception", "Escamotage"], gear: ["Rapière", "Arc court + 20 flèches", "Armure de cuir", "Outils de voleur", "2 dagues"], feats: "Attaque sournoise (1d6), Argot des voleurs, Expertise", spells: "" },
+  },
+
   /* ---------- XP & niveaux (progression 5e classique) ---------- */
   XP_THRESHOLDS: [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000],
   levelForXp(xp) { let lv = 1; for (let i = 0; i < this.XP_THRESHOLDS.length; i++) if ((xp || 0) >= this.XP_THRESHOLDS[i]) lv = i + 1; return Math.min(20, lv); },

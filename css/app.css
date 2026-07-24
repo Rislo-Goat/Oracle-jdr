@@ -249,6 +249,8 @@ textarea { resize:none; line-height:1.45; }
 .xp-in { width:90px; padding:6px 8px; text-align:center; }
 .lvlup { margin-left:auto; }
 .card-lvlup { margin-top:10px; padding:8px 11px; border-radius:8px; text-align:center; font-size:12.5px; font-weight:700; color:var(--ink); background:linear-gradient(180deg,var(--accent2),var(--accent)); }
+.card-optimize { margin-top:10px; width:100%; padding:9px 11px; border-radius:9px; font-size:12.5px; font-weight:700; color:var(--ink); background:linear-gradient(180deg,var(--accent2),var(--accent)); border:1px solid color-mix(in srgb,var(--accent) 55%,#000); }
+.card-optimize:active { transform:scale(.97); }
 .rest-row { display:flex; gap:8px; }
 .rest-row .btn { flex:1; }
 .slot-wrap { display:flex; flex-direction:column; gap:7px; margin-bottom:6px; }

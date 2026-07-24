@@ -149,15 +149,18 @@ const UI = {
       .replace(/\s+/g, " ").trim();
     if (!clean) return;
     try {
-      window.speechSynthesis.cancel();
+      const synth = window.speechSynthesis;
+      synth.cancel();
       const u = new SpeechSynthesisUtterance(clean);
       u.lang = "fr-FR";
-      const voices = window.speechSynthesis.getVoices() || [];
+      const voices = synth.getVoices() || [];
       const fr = voices.find(v => /fr[-_]?FR/i.test(v.lang)) || voices.find(v => /^fr/i.test(v.lang));
       if (fr) u.voice = fr;
       if (kind === "pnj") { u.pitch = 0.6; u.rate = 0.95; } // voix de personnage / IA, plus grave
       else { u.pitch = 1; u.rate = 1.03; }
-      window.speechSynthesis.speak(u);
+      synth.speak(u);
+      // Correctif iOS : la synthèse se met parfois en pause juste après speak()
+      setTimeout(() => { try { if (synth.paused) synth.resume(); } catch (e) {} }, 120);
     } catch (e) { /* ignore */ }
   },
   speakId(id) {
@@ -520,15 +523,30 @@ const UI = {
         ${h.conditions && h.conditions.length ? `<div class="cond-row">${h.conditions.map(x => `<span class="cond">${this.esc(x)}</span>`).join("")}</div>` : ""}
         ${h.gear && h.gear.length ? `<div class="gear-row">🎒 ${h.gear.map(x => this.esc(x)).join(", ")}</div>` : ""}
         ${is5e && DND.canLevelUp(h) ? `<div class="card-lvlup">⬆️ Peut monter de niveau ${DND.levelForXp(h.xp)} !</div>` : ""}
+        ${is5e && this.isBlankHero(h) ? `<button class="card-optimize" onclick="event.stopPropagation();UI.optimizeHero('${h.id}')">⚡ Optimiser ce héros (caracs + compétences de sa classe)</button>` : ""}
       </div>`;
     }).join("");
     el.innerHTML = `
       <div class="section-head"><h2>🛡️ Les héros</h2><span class="count">${c.heroes.length}</span></div>
       ${c.heroes.length ? cards : `<div class="empty">Aucun héros. Ajoute les personnages de tes 4 joueurs.</div>`}
-      <button class="btn btn-primary btn-block" onclick="UI.newHero()">＋ Ajouter un héros</button>`;
+      ${c.heroes.some(h => this.isBlankHero(h)) ? `<button class="btn btn-primary btn-block" onclick="UI.optimizeAll()">⚡ Optimiser tous les héros (caracs + compétences)</button>` : ""}
+      <button class="btn btn-ghost btn-block" onclick="UI.newHero()">＋ Ajouter un héros</button>`;
   },
 
   newHero() { const h = State.addHero(); this.renderHeroes(); this.editHero(h.id); },
+  isBlankHero(h) { return DND.ABILITY_ORDER.every(a => (h.abilities[a] || 10) === 10) && (!h.skillProfs || !h.skillProfs.length); },
+  optimizeHero(id) {
+    const h = State.hero(id); if (!h) return;
+    State.applyBuild(h); State.save();
+    this.toast(`⚡ ${h.name} optimisé (${h.cls}) — caracs, compétences, équipement`, "ok");
+    if (this.view === "heroes") this.renderHeroes(); else this.editHero(id);
+  },
+  optimizeAll() {
+    const c = State.current(); let n = 0;
+    (c.heroes || []).forEach(h => { if (this.isBlankHero(h)) { State.applyBuild(h); n++; } });
+    State.save(); this.renderHeroes();
+    this.toast(n ? `⚡ ${n} héros optimisé(s)` : "Tous les héros sont déjà optimisés", "ok");
+  },
 
   editHero(id) {
     const c = State.current();
@@ -563,6 +581,7 @@ const UI = {
         </div>
         <div class="race-note">${this.esc((DND.RACES[h.race] || {}).note || "")} · maîtrise <b>+${DND.profBonus(h.level)}</b></div>
 
+        <button class="btn btn-primary btn-block" onclick="UI.optimizeHero('${id}')">⚡ Optimiser pour ${this.esc(h.cls)} (caracs, compétences, équipement recommandés)</button>
         <h3 class="mini-h3">Caractéristiques <button class="gen-btn" onclick="UI.genAbilities('${id}','array')">Tableau standard</button><button class="gen-btn" onclick="UI.genAbilities('${id}','roll')">🎲 4d6</button></h3>
         <div class="ab-grid">${abInputs}</div>
 
