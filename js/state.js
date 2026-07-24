@@ -105,6 +105,7 @@ const State = {
     if (!this.data.ai) this.data.ai = { provider: "backend", key: "", model: "" };
     if (!this.data.players) this.data.players = [];
     if (this.data.physicalDice === undefined) this.data.physicalDice = true; // vrais dés par défaut
+    if (this.data.autoRead === undefined) this.data.autoRead = false; // lecture vocale auto
     this.migrate();
     return this.data;
   },

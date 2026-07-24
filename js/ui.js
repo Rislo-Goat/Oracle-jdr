@@ -113,9 +113,9 @@ const UI = {
     if (e.kind === "scene") return `<div class="c-scene">📍 ${this.esc(e.text)}</div>`;
     if (e.kind === "event") return `<div class="c-event">⚡ ${this.esc(e.text)}</div>`;
     if (e.kind === "dice") return `<div class="c-dice">🎲 ${this.esc(e.text)}</div>`;
-    if (e.kind === "pnj") return `<div class="c-pnj"><span class="c-pnj-name">${this.esc(e.who)}</span> ${this.esc(e.text)}</div>`;
+    if (e.kind === "pnj") return `<div class="c-pnj"><span class="c-pnj-name">${this.esc(e.who)}</span> ${this.esc(e.text)} <button class="speak-btn" onclick="UI.speakId('${e.id}')">🔊</button></div>`;
     if (e.kind === "action") return `<div class="c-action"><span class="c-who">${this.esc(e.who || "MJ")}</span>${this.md(e.text)}</div>`;
-    if (e.kind === "oracle") return `<div class="c-oracle"><div class="c-oracle-head">🔮 Oracle</div>${this.md(e.text)}${e.fx ? `<div class="c-fx">${e.fx}</div>` : ""}</div>`;
+    if (e.kind === "oracle") return `<div class="c-oracle"><div class="c-oracle-head">🔮 Oracle <button class="speak-btn" onclick="UI.speakId('${e.id}')">🔊</button></div>${this.md(e.text)}${e.fx ? `<div class="c-fx">${e.fx}</div>` : ""}</div>`;
     return `<div class="c-note">${this.md(e.text)}</div>`;
   },
 
@@ -138,6 +138,33 @@ const UI = {
     </div>`;
   },
   dismissSetup() { this.setupDismissed = true; this.renderPlay(); },
+
+  /* ---------- Lecture vocale (synthèse sur l'appareil, gratuite) ---------- */
+  speak(text, kind) {
+    if (!("speechSynthesis" in window)) { this.toast("Voix non disponible sur cet appareil", "warn"); return; }
+    const clean = String(text || "")
+      .replace(/\*\*|__|[*_#`~>]/g, "")
+      .replace(/\[[^\]]*\]/g, "")
+      .replace(/https?:\/\/\S+/g, "")
+      .replace(/\s+/g, " ").trim();
+    if (!clean) return;
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(clean);
+      u.lang = "fr-FR";
+      const voices = window.speechSynthesis.getVoices() || [];
+      const fr = voices.find(v => /fr[-_]?FR/i.test(v.lang)) || voices.find(v => /^fr/i.test(v.lang));
+      if (fr) u.voice = fr;
+      if (kind === "pnj") { u.pitch = 0.6; u.rate = 0.95; } // voix de personnage / IA, plus grave
+      else { u.pitch = 1; u.rate = 1.03; }
+      window.speechSynthesis.speak(u);
+    } catch (e) { /* ignore */ }
+  },
+  speakId(id) {
+    const c = State.current(); const e = (c.chronicle || []).find(x => x.id === id); if (!e) return;
+    this.speak((e.who ? e.who + ". " : "") + e.text, e.kind);
+  },
+  stopSpeak() { if ("speechSynthesis" in window) window.speechSynthesis.cancel(); },
 
   compose(text) { const i = document.getElementById("playInput"); if (i) { i.value = text; this.autogrow(i); i.focus(); } },
   autogrow(el) { el.style.height = "auto"; el.style.height = Math.min(120, el.scrollHeight) + "px"; },
@@ -269,6 +296,7 @@ const UI = {
     const fx = effects.length ? effects.join(" · ") : "";
     if (mode === "play") State.log({ kind: "oracle", text: clean, fx });
     else { State.current().chat.push({ kind: "oracle", text: clean, t: Date.now() }); State.save(); }
+    if (mode === "play" && State.data.autoRead && clean) this.speak(clean, "oracle");
     if (btn) { btn.disabled = false; btn.textContent = mode === "play" ? "▶" : "▶"; }
     // exécute les jets demandés par l'Oracle
     if (rolls.length || damage.length) this.resolveAll(rolls, damage);
@@ -1027,6 +1055,13 @@ const UI = {
       </div>
 
       <div class="card">
+        <h3>🔊 Voix</h3>
+        <div class="hint">Lecture à voix haute (synthèse de ton téléphone, gratuite). Un bouton 🔊 apparaît sur chaque narration de l'Oracle et chaque réplique de PNJ/IA (voix plus grave pour les personnages).</div>
+        <label class="chk chk-row"><input type="checkbox" ${d.autoRead ? "checked" : ""} onchange="UI.setAutoRead(this.checked)"> <span><b>Lire automatiquement</b> les réponses de l'Oracle à voix haute.</span></label>
+        <button class="btn btn-ghost btn-sm" onclick="UI.speak('Test de la voix de l\\'Oracle. La partie peut commencer.','oracle')">🔊 Tester la voix</button>
+      </div>
+
+      <div class="card">
         <h3>🎭 Ton rôle (MJ + joueur)</h3>
         <div class="hint">Tu es le MJ mais tu incarnes aussi un perso ? Indique-le : l'Oracle t'assistera pour toute la table ET donnera des moments forts à ton personnage, sans jamais jouer à ta place.</div>
         <label class="f">Mon personnage<select onchange="UI.setMjHero(this.value)">
@@ -1098,6 +1133,7 @@ const UI = {
   savePlayers() { State.data.players = document.getElementById("playersInput").value.split("\n").map(s => s.trim()).filter(Boolean); State.save(); this.toast("Joueurs enregistrés", "ok"); },
   setMjHero(id) { const c = State.current(); c.mjHeroId = id; State.save(); this.toast(id ? "L'Oracle sait que tu joues aussi 🎭" : "MJ uniquement", "ok"); },
   setPhysicalDice(v) { State.data.physicalDice = v; State.save(); this.toast(v ? "🎲 Tu lances tes vrais dés" : "L'app lance les dés", "ok"); },
+  setAutoRead(v) { State.data.autoRead = v; State.save(); if (!v) this.stopSpeak(); this.toast(v ? "🔊 Lecture auto activée" : "Lecture auto coupée", "ok"); },
   async testAiKey() {
     const ai = State.data.ai; const model = ai.model || (DATA.AI_PROVIDERS[ai.provider] || {}).model;
     this.toast("Test en cours…");

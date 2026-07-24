@@ -171,7 +171,10 @@ textarea { resize:none; line-height:1.45; }
 .c-action { align-self:flex-end; background:linear-gradient(180deg, var(--accent2), var(--accent)); color:var(--ink); border-bottom-right-radius:4px; box-shadow:0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent); }
 .c-action .c-who { display:block; font-size:11px; opacity:.75; font-weight:800; margin-bottom:2px; text-transform:uppercase; letter-spacing:.04em; }
 .c-oracle { align-self:flex-start; background:linear-gradient(180deg, var(--card), color-mix(in srgb,var(--ink) 14%,var(--card))); border:1px solid var(--border); border-left:3px solid var(--accent); border-bottom-left-radius:4px; }
-.c-oracle-head { font-family:var(--serif); font-size:12.5px; color:var(--accent); font-weight:700; margin-bottom:5px; letter-spacing:.03em; }
+.c-oracle-head { font-family:var(--serif); font-size:12.5px; color:var(--accent); font-weight:700; margin-bottom:5px; letter-spacing:.03em; display:flex; align-items:center; gap:6px; }
+.speak-btn { font-size:14px; padding:2px 6px; border-radius:7px; background:color-mix(in srgb,var(--ink) 25%,var(--card2)); border:1px solid var(--border); line-height:1; }
+.speak-btn:active { transform:scale(.9); background:var(--accent); }
+.c-oracle-head .speak-btn { margin-left:auto; }
 .c-fx { margin-top:9px; padding-top:8px; border-top:1px dashed var(--border); font-size:11px; color:var(--muted); }
 .c-note { align-self:center; background:color-mix(in srgb,var(--ink) 30%,var(--bg2)); color:var(--muted); font-size:13px; font-style:italic; }
 .c-pnj { align-self:flex-start; background:color-mix(in srgb, var(--gold) 12%, var(--card)); border:1px solid color-mix(in srgb, var(--gold) 32%, var(--border)); border-left:3px solid var(--gold); font-style:italic; font-family:var(--serif); font-size:15px; }
