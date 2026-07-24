@@ -19,13 +19,18 @@ const Oracle = {
     const sys = (DATA.DICE_SYSTEMS[c.system] || {});
 
     const is5e = c.system === "dnd5e";
+    const sk = (c.skin && DATA.SKINS && DATA.SKINS[c.skin]) ? DATA.SKINS[c.skin] : null;
+    const cn = (cls) => (sk && sk.classNames[cls]) || cls;
+    const skinNote = sk
+      ? `\nRESKIN D'UNIVERS : utilise le VOCABULAIRE de l'univers, pas les termes D&D — la mécanique 5e est pourtant identique. La magie s'appelle « ${sk.magic} ». Classes : ${Object.entries(sk.classNames).map(([k, v]) => k + "→" + v).join(", ")}. Renomme aussi armes, sorts et objets dans ce style (ex. ${Object.entries(sk.gear || {}).slice(0, 4).map(([k, v]) => k + "→" + v).join(", ")}). Ne dis jamais « lance un sort de mage » si le décor est autre ; garde l'immersion.`
+      : "";
     const heroes = c.heroes.length ? c.heroes.map(h => {
       if (is5e && typeof DND !== "undefined") {
         const ab = DND.ABILITY_ORDER.map(a => `${a} ${(h.abilities[a] || 10)}(${DND.modStr(h.abilities[a])})`).join(" ");
         const prof = "+" + DND.profBonus(h.level || 1);
         const profSk = (h.skillProfs || []).length ? " | maîtrises : " + h.skillProfs.join(", ") : "";
         const saves = (h.saveProfs || []).length ? " | sauv. maîtrisées : " + h.saveProfs.join(",") : "";
-        return `• ${h.name}${h.player ? " (joué par " + h.player + ")" : ""} — ${h.race} ${h.cls} niv.${h.level}${h.concept ? " (" + h.concept + ")" : ""} | PV ${h.hp}/${h.maxHp}, CA ${h.armor}, init +${DND.abilityMod(h, "DEX")}, maîtrise ${prof} | ${ab}${profSk}${saves}${h.gear && h.gear.length ? " | sac : " + h.gear.join(", ") : ""}${h.conditions && h.conditions.length ? " | ÉTATS : " + h.conditions.join(", ") : ""}${h.feats ? " | atouts : " + h.feats : ""}`;
+        return `• ${h.name}${h.player ? " (joué par " + h.player + ")" : ""} — ${h.race} ${cn(h.cls)}${cn(h.cls) !== h.cls ? " [" + h.cls + " 5e]" : ""} niv.${h.level}${h.concept ? " (" + h.concept + ")" : ""} | PV ${h.hp}/${h.maxHp}, CA ${h.armor}, init +${DND.abilityMod(h, "DEX")}, maîtrise ${prof} | ${ab}${profSk}${saves}${h.gear && h.gear.length ? " | sac : " + h.gear.join(", ") : ""}${h.conditions && h.conditions.length ? " | ÉTATS : " + h.conditions.join(", ") : ""}${h.feats ? " | atouts : " + h.feats : ""}`;
       }
       const st = Object.entries(h.stats || {}).filter(([, v]) => v !== 0 && v !== "")
         .map(([k, v]) => `${k} ${v >= 0 ? "+" : ""}${v}`).join(", ");
@@ -62,7 +67,7 @@ const Oracle = {
 Tu parles français, tu tutoies le MJ, tu es immersif mais efficace. Ta priorité absolue : une partie VIVANTE, cohérente et captivante, où les choix des joueurs comptent VRAIMENT.${dualRole}${originNote}
 
 UNIVERS : ${g.name} — ${g.ico}
-TON : ${tone}
+TON : ${tone}${skinNote}
 SYSTÈME DE DÉS : ${sys.name || c.system} (${sys.help || ""})
 PITCH : ${c.pitch || g.pitch}
 ENJEU CENTRAL : ${c.stakes || "(à définir avec le MJ)"}

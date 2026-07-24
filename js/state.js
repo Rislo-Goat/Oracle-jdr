@@ -28,6 +28,8 @@ const State = {
       mjHeroId: "",            // le perso que TOI (le MJ) joues aussi (double rôle)
       origin: "scratch",       // scratch | generated | resume
       kickoff: "",             // 1ère consigne à jouer automatiquement (génération/reprise)
+      skin: null,              // reskin d'univers (clé DATA.SKINS) : renomme classes/équipement
+      presetId: "",            // aventure prête choisie au lancement
       heroes: [],              // les PJ (jusqu'à ~6)
       npcs: [],                // PNJ
       places: [],              // lieux
@@ -151,6 +153,8 @@ const State = {
       if (c.mjHeroId == null) c.mjHeroId = "";
       if (!c.origin) c.origin = "scratch";
       if (c.kickoff == null) c.kickoff = "";
+      if (c.skin === undefined) c.skin = null;
+      if (c.presetId == null) c.presetId = "";
       (c.heroes || []).forEach(h => {
         if (!h.abilities || typeof h.abilities !== "object") h.abilities = { FOR: 10, DEX: 10, CON: 10, INT: 10, SAG: 10, CHA: 10 };
         if (!h.skillProfs) h.skillProfs = [];

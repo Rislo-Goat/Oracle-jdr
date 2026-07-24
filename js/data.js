@@ -103,6 +103,54 @@ const DATA = {
   /* ---------- Portraits (emojis) pour héros & PNJ ---------- */
   AVATARS: ["🧙","🛡️","🗡️","🏹","🧝","🧛","🦹","🥷","👑","🧟","🐉","🦊","🐺","🦉","⚕️","🔮","⚗️","🎭","🤖","👽","🚀","🕵️","💂","🧑‍🚀","🧑‍🔬","🏴‍☠️","🧜","👻","😈","🐗"],
 
+  /* ---------- Reskins d'univers : renomme classes / magie / équipement.
+     La MÉCANIQUE D&D 5e reste identique — seuls les noms affichés changent. ---------- */
+  SKINS: {
+    scifi: { magic: "programmes & pouvoirs psioniques",
+      classNames: { Guerrier: "Soldat", Magicien: "Technomancien", Roublard: "Infiltrateur", Clerc: "Médic de bord", Barde: "Officier", Rôdeur: "Éclaireur", Barbare: "Berserker de combat", Paladin: "Gardien", Ensorceleur: "Psionique", Occultiste: "Contacté", Druide: "Xénobiologiste", Moine: "Cyber-moine" },
+      gear: { "Épée longue": "Lame vibro", "Bâton": "Interface neurale", "Grimoire": "Datapad de sorts", "Outils de voleur": "Kit de piratage", "Symbole sacré": "Émetteur de soin", "Arc court": "Fusil à impulsion", "Cotte de mailles": "Combinaison blindée", "Bouclier": "Bouclier à énergie", "Projectile magique": "Salve d'ions" } },
+    cyberpunk: { magic: "implants & programmes",
+      classNames: { Guerrier: "Solo", Magicien: "Netrunner", Roublard: "Hacker", Clerc: "Ripperdoc", Barde: "Fixer", Rôdeur: "Nomade", Barbare: "Cogneur", Paladin: "Justicier des rues", Ensorceleur: "Esper", Occultiste: "Accro au Net", Druide: "Écoactiviste", Moine: "Artiste martial augmenté" },
+      gear: { "Épée longue": "Katana mono-lame", "Bâton": "Deck de hack", "Grimoire": "Bibliothèque de programmes", "Outils de voleur": "Kit d'intrusion", "Symbole sacré": "Trousse cyber-med", "Arc court": "Pistolet intelligent", "Cotte de mailles": "Veste pare-balles", "Projectile magique": "Attaque virale" } },
+    horror: { magic: "rituels & dons maudits",
+      classNames: { Guerrier: "Chasseur", Magicien: "Occultiste érudit", Roublard: "Cambrioleur", Clerc: "Prêtre", Barde: "Journaliste", Rôdeur: "Traqueur", Barbare: "Brute", Paladin: "Templier", Ensorceleur: "Maudit", Occultiste: "Élu", Druide: "Herboriste", Moine: "Ascète" },
+      gear: { "Épée longue": "Hache d'incendie", "Bâton": "Grimoire interdit", "Outils de voleur": "Pied-de-biche & crochets", "Symbole sacré": "Crucifix", "Arc court": "Fusil de chasse", "Projectile magique": "Trait spectral" } },
+    pirates: { magic: "sortilèges des marées",
+      classNames: { Guerrier: "Bretteur", Magicien: "Navigateur mystique", Roublard: "Écumeur", Clerc: "Aumônier de bord", Barde: "Ménestrel", Rôdeur: "Harponneur", Barbare: "Forban", Paladin: "Corsaire d'honneur", Ensorceleur: "Enfant des marées", Occultiste: "Pactisé des abysses", Druide: "Chaman des îles", Moine: "Maître d'armes" },
+      gear: { "Épée longue": "Sabre d'abordage", "Bâton": "Bâton de navigateur", "Arc court": "Pistolet à silex", "Outils de voleur": "Nécessaire de crochetage", "Cotte de mailles": "Cuir de marin", "Projectile magique": "Salve d'écume" } },
+    victorian: { magic: "sciences interdites & spiritisme",
+      classNames: { Guerrier: "Garde du corps", Magicien: "Érudit de l'arcane", Roublard: "Détective", Clerc: "Aliéniste", Barde: "Reporter", Rôdeur: "Pisteur urbain", Barbare: "Homme de main", Paladin: "Inspecteur", Ensorceleur: "Médium", Occultiste: "Initié d'une loge", Druide: "Naturaliste", Moine: "Adepte" },
+      gear: { "Épée longue": "Canne-épée", "Bâton": "Carnet de recherches", "Arc court": "Revolver", "Outils de voleur": "Trousse de crochetage", "Symbole sacré": "Médaille de loge", "Projectile magique": "Décharge ectoplasmique" } },
+  },
+
+  /* ---------- Aventures prêtes à jouer (proposées au lancement) ---------- */
+  PRESETS: [
+    { id: "karn", name: "Les Profondeurs de Karn-Dûr", ico: "⚔️", genre: "darkfantasy", theme: "ember", tone: "survie", skin: null,
+      blurb: "Dark fantasy · donjon", pitch: "Une cité naine engloutie sous la montagne, ses trésors immenses… et ce qui les garde encore. Descente périlleuse, pièges anciens et factions rivales dans les ténèbres.",
+      stakes: "Ressortir vivants et riches — ou réveiller ce qui dort au fond.", scene: { title: "Le seuil de Karn-Dûr", mood: "porte de pierre gravée, air froid et odeur de poussière millénaire" } },
+    { id: "bannieres", name: "Les Sept Bannières", ico: "👑", genre: "fantasy", theme: "royal", tone: "politique", skin: null,
+      blurb: "Fantasy · intrigue & politique", pitch: "Le roi est mort sans héritier. Sept maisons s'entredéchirent pour le trône, l'hiver approche, et vos personnages sont des pions — ou de futurs faiseurs de rois.",
+      stakes: "Survivre aux complots et décider qui régnera.", scene: { title: "La cour en deuil", mood: "salle du trône glaciale, murmures, regards en coin" } },
+    { id: "cendres", name: "La Marche des Cendres", ico: "🌋", genre: "fantasy", theme: "default", tone: "heroique", skin: null,
+      blurb: "Haute fantasy · épique", pitch: "Une compagnie improbable doit porter un artefact maudit à travers des terres en guerre jusqu'au seul lieu où le détruire. Le mal vous piste sans relâche.",
+      stakes: "Détruire l'artefact avant qu'il ne vous corrompe — ou que l'ennemi le reprenne.", scene: { title: "Le départ au crépuscule", mood: "route de montagne, corbeaux au loin, poids du fardeau" } },
+    { id: "mornevaux", name: "La Faille de Mornevaux", ico: "🕯️", genre: "horror", theme: "matrix", tone: "mystere", skin: "horror",
+      blurb: "Horreur & enquête", pitch: "Dans un bourg isolé, des enfants disparaissent et une « faille » crache des choses la nuit. Vous enquêtez avant que le voile ne se déchire pour de bon.",
+      stakes: "Refermer la faille et sauver les disparus — sans y laisser votre raison.", scene: { title: "La lisière, à la nuit tombée", mood: "brume, lampes vacillantes, un silence anormal" } },
+    { id: "helios", name: "L'Épave d'Hélios", ico: "🚀", genre: "scifi", theme: "neon", tone: "survie", skin: "scifi",
+      blurb: "Science-fiction · huis-clos spatial", pitch: "Votre vaisseau répond à un signal de détresse et reste piégé près d'une épave géante. IA défaillante, oxygène qui baisse, et quelque chose à bord qui n'est pas humain.",
+      stakes: "Sortir vivants et comprendre ce qui a tué l'équipage d'Hélios.", scene: { title: "Sas d'amarrage", mood: "métal qui grince, lumières rouges, silence radio" } },
+    { id: "neon", name: "Néon Sabbat", ico: "🌆", genre: "cyberpunk", theme: "neon", tone: "sombre", skin: "cyberpunk",
+      blurb: "Cyberpunk · noir & action", pitch: "Mégapole pluvieuse, corpos tentaculaires. Un contrat « simple » tourne mal et vous vous retrouvez avec un secret qui vaut des millions — ou votre peau.",
+      stakes: "Monnayer le secret sans finir en pièces détachées.", scene: { title: "Ruelle sous la pluie acide", mood: "néons, fumée, sirènes lointaines" } },
+    { id: "noye", name: "La Carte de l'Homme Noyé", ico: "🏴‍☠️", genre: "pirates", theme: "ocean", tone: "aventure", skin: "pirates",
+      blurb: "Pirates · aventure & trésor", pitch: "Une carte au trésor tatouée sur un noyé, des mers maudites, des îles impossibles et une marine à vos trousses. Larguez les amarres.",
+      stakes: "Trouver le trésor avant vos rivaux — et survivre à sa malédiction.", scene: { title: "Sur le pont, au petit matin", mood: "embruns, cris de mouettes, une carte étalée" } },
+    { id: "lanternes", name: "Les Lanternes de Sombreville", ico: "🔍", genre: "modern", theme: "ocean", tone: "mystere", skin: "victorian",
+      blurb: "Fantasy victorienne · détective", pitch: "Enquêteurs de l'étrange dans une cité industrielle brumeuse : meurtres impossibles, cultes discrets et machines interdites. Chaque affaire creuse un mystère plus grand.",
+      stakes: "Résoudre l'affaire — et remonter le fil vers la vérité qu'on veut cacher.", scene: { title: "Une scène de crime impossible", mood: "brouillard jaune, gaz de ville, porte close de l'intérieur" } },
+  ],
+
   /* ---------- Générateurs hors-ligne (si pas d'IA) ---------- */
   NAME_BANK: {
     fantasy: ["Aldric","Maelys","Corvin","Ysolde","Bram","Séraphine","Grimwald","Elara","Thane","Orianne","Faelan","Rowena"],

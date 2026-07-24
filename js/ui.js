@@ -312,8 +312,10 @@ const UI = {
       const stats = is5e
         ? DND.ABILITY_ORDER.map(a => `<span class="stat-pill">${a} <b>${DND.modStr(h.abilities[a])}</b> <i>${h.abilities[a] || 10}</i></span>`).join("")
         : Object.entries(h.stats || {}).map(([k, v]) => `<span class="stat-pill">${this.esc(k.slice(0, 3))} <b>${v >= 0 ? "+" : ""}${v}</b></span>`).join("");
+      const clsName = this.skinCls(h.cls);
+      const clsLabel = clsName !== h.cls ? `${this.esc(clsName)} <span class="cls-base">(${this.esc(h.cls)})</span>` : this.esc(h.cls);
       const subtitle = is5e
-        ? `${this.esc(h.race)} · ${this.esc(h.cls)} niv.${h.level}`
+        ? `${this.esc(h.race)} · ${clsLabel} niv.${h.level}`
         : this.esc(h.concept || "—");
       return `<div class="card hero-card" onclick="UI.editHero('${h.id}')">
         <div class="hero-top">
@@ -826,6 +828,8 @@ const UI = {
   },
   savePlayers() { State.data.players = document.getElementById("playersInput").value.split("\n").map(s => s.trim()).filter(Boolean); State.save(); this.toast("Joueurs enregistrés", "ok"); },
   setMjHero(id) { const c = State.current(); c.mjHeroId = id; State.save(); this.toast(id ? "L'Oracle sait que tu joues aussi 🎭" : "MJ uniquement", "ok"); },
+  // Nom de classe reskiné selon l'univers de la campagne (mécanique inchangée)
+  skinCls(cls) { const c = State.current(); const sk = c && c.skin ? DATA.SKINS[c.skin] : null; return (sk && sk.classNames && sk.classNames[cls]) || cls; },
   switchCamp(id) { State.switchCampaign(id); this.go("play"); },
   delCamp(id) { if (confirm("Supprimer cette campagne définitivement ?")) { State.deleteCampaign(id); this.renderTable(); this.renderHeader(); } },
   newCampaignFlow() { App.startOnboarding(true); },
