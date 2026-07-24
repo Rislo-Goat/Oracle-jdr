@@ -183,37 +183,53 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
     if (ai.provider === "backend") {
       const be = State.data.backend;
       const url = (be.url || location.origin).replace(/\/+$/, "") + "/api/oracle/chat";
-      try {
-        const r = await fetch(url, {
-          method: "POST",
-          headers: Object.assign({ "content-type": "application/json" }, be.token ? { "X-Oracle-Token": be.token } : {}),
-          body: JSON.stringify({ system, messages }),
-        });
-        const j = await r.json();
-        if (j.ok) { this.lastStatus = { mode: "ai", provider: j.provider || "backend" }; return j.text; }
-        this.lastStatus = { mode: "offline", reason: this.cause(j.error) };
-        return this.fallback(userMessage) + this.downNote(j.error);
-      } catch (e) {
-        this.lastStatus = { mode: "offline", reason: this.cause("réseau : " + e.message) };
-        return this.fallback(userMessage) + this.downNote("réseau : " + e.message);
+      let lastErr = "réseau";
+      for (let i = 0; i < 4; i++) {
+        try {
+          const r = await fetch(url, {
+            method: "POST",
+            headers: Object.assign({ "content-type": "application/json" }, be.token ? { "X-Oracle-Token": be.token } : {}),
+            body: JSON.stringify({ system, messages }),
+          });
+          const j = await r.json();
+          if (j.ok) { this.lastStatus = { mode: "ai", provider: j.provider || "backend" }; return j.text; }
+          lastErr = j.error || "erreur";
+          if (/401|403|invalid|clé|aucune/i.test(lastErr)) break; // erreur de config : inutile de réessayer
+        } catch (e) { lastErr = "réseau : " + e.message; }
+        await new Promise(r => setTimeout(r, 700 * (i + 1)));
       }
+      this.lastStatus = { mode: "offline", reason: this.cause(lastErr) };
+      return this.fallback(userMessage) + this.downNote(lastErr);
     }
 
     // 2) Clé directe côté téléphone
     if (!ai.key) { this.lastStatus = { mode: "offline", reason: "aucune clé" }; return this.fallback(userMessage); }
     const model = ai.model || DATA.AI_PROVIDERS[ai.provider].model;
-    try {
-      let text;
-      if (ai.provider === "claude") text = await this.callClaude(ai.key, model, system, messages);
-      else if (ai.provider === "gemini") text = await this.callGemini(ai.key, model, system, messages);
-      else if (ai.provider === "openrouter") text = await this.callOAI(ai.key, model, system, messages, "https://openrouter.ai/api/v1/chat/completions");
-      else text = await this.callOAI(ai.key, model, system, messages, "https://api.groq.com/openai/v1/chat/completions");
-      this.lastStatus = { mode: "ai", provider: ai.provider };
-      return text;
-    } catch (e) {
-      this.lastStatus = { mode: "offline", reason: this.cause(e.message) };
-      return this.fallback(userMessage) + this.downNote(e.message);
+    const call = () => {
+      if (ai.provider === "claude") return this.callClaude(ai.key, model, system, messages);
+      if (ai.provider === "gemini") return this.callGemini(ai.key, model, system, messages);
+      if (ai.provider === "openrouter") return this.callOAI(ai.key, model, system, messages, "https://openrouter.ai/api/v1/chat/completions");
+      return this.callOAI(ai.key, model, system, messages, "https://api.groq.com/openai/v1/chat/completions");
+    };
+    // Réessaie automatiquement les erreurs TRANSITOIRES (réseau, 429, 5xx),
+    // pour ne pas tomber hors-ligne sur une micro-coupure 4G. Pas de retry
+    // sur une clé invalide (401/403) — inutile, on le signale.
+    let lastErr;
+    for (let i = 0; i < 4; i++) {
+      try {
+        const text = await call();
+        this.lastStatus = { mode: "ai", provider: ai.provider };
+        return text;
+      } catch (e) {
+        lastErr = e;
+        const transient = /429|500|502|503|504|network|timeout|fetch|failed|econn|réseau|load failed/i.test(e.message);
+        const auth = /401|403|invalid|api key|clé|permission|denied|unauthor/i.test(e.message);
+        if (auth || !transient) break;
+        await new Promise(r => setTimeout(r, 700 * (i + 1)));
+      }
     }
+    this.lastStatus = { mode: "offline", reason: this.cause(lastErr.message) };
+    return this.fallback(userMessage) + this.downNote(lastErr.message);
   },
 
   async callClaude(key, model, system, messages) {

@@ -993,6 +993,7 @@ const UI = {
       <div class="card">
         <h3>🔮 Oracle IA</h3>
         <div class="ai-status ${ai.key || ai.provider === "backend" ? "on" : "off"}">${this.aiStatusLabel()}</div>
+        ${ai.key ? `<div class="key-saved">🔐 Clé enregistrée : <code>${this.esc(ai.key.slice(0, 6))}…${this.esc(ai.key.slice(-4))}</code> <span class="key-len">(${ai.key.length} car.)</span></div>` : ""}
         <div class="key-quick">
           <label class="f">🔑 Colle ta clé ici (Groq ou Gemini — gratuit)<input id="quickKey" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="gsk_…  ou  AIza…" onchange="UI.pasteKey(this.value)"></label>
           <div class="hint">Colle et c'est tout : l'app détecte le fournisseur et active l'Oracle. Ta clé reste sur ton téléphone. <a class="link" href="https://console.groq.com/keys" target="_blank">↗ Obtenir une clé Groq gratuite</a></div>
@@ -1071,6 +1072,7 @@ const UI = {
     else { d.ai.key = v; if (d.ai.provider === "backend") d.ai.provider = "groq"; this.toast("Clé enregistrée. Vérifie le fournisseur dans les réglages avancés.", "warn"); }
     Oracle.lastStatus = null; this.setupDismissed = false;
     State.save(); this.renderTable();
+    if (d.ai.key && d.ai.provider !== "backend") setTimeout(() => this.testAiKey(), 150); // vérifie tout de suite
   },
   setAIProvider(v) { State.data.ai.provider = v; State.data.ai.model = DATA.AI_PROVIDERS[v].model || ""; State.save(); this.renderTable(); },
   setAIKey(v) { State.data.ai.key = v.trim(); State.save(); },
