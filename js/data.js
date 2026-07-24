@@ -59,7 +59,9 @@ const DATA = {
 
   /* ---------- Systèmes de dés (moteur adaptable) ---------- */
   DICE_SYSTEMS: {
-    d20:  { name: "d20 (D&D-like)", formula: "1d20", target: "Difficulté (DD)", defaultDC: 12,
+    dnd5e:{ name: "D&D 5e (d20 SRD)", formula: "1d20", target: "Degré de Difficulté (DD)", defaultDC: 15,
+            help: "1d20 + modificateur de caractéristique (+ bonus de maîtrise si compétent) ≥ DD. 20 naturel = réussite critique, 1 naturel = échec critique. DD : Facile 10 · Moyen 15 · Difficile 20." },
+    d20:  { name: "d20 (générique)", formula: "1d20", target: "Difficulté (DD)", defaultDC: 12,
             help: "1d20 + modificateur ≥ DD. Réussite critique sur 20, échec critique sur 1." },
     "2d6":{ name: "2d6 (PbtA / narratif)", formula: "2d6", target: "Seuil", defaultDC: 7,
             help: "2d6 + mod : 10+ = réussite franche, 7-9 = réussite à un coût, 6- = complication." },

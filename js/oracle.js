@@ -18,11 +18,22 @@ const Oracle = {
     const tone = (DATA.TONES[c.tone] || {}).name || c.tone;
     const sys = (DATA.DICE_SYSTEMS[c.system] || {});
 
+    const is5e = c.system === "dnd5e";
     const heroes = c.heroes.length ? c.heroes.map(h => {
+      if (is5e && typeof DND !== "undefined") {
+        const ab = DND.ABILITY_ORDER.map(a => `${a} ${(h.abilities[a] || 10)}(${DND.modStr(h.abilities[a])})`).join(" ");
+        const prof = "+" + DND.profBonus(h.level || 1);
+        const profSk = (h.skillProfs || []).length ? " | maîtrises : " + h.skillProfs.join(", ") : "";
+        const saves = (h.saveProfs || []).length ? " | sauv. maîtrisées : " + h.saveProfs.join(",") : "";
+        return `• ${h.name}${h.player ? " (joué par " + h.player + ")" : ""} — ${h.race} ${h.cls} niv.${h.level}${h.concept ? " (" + h.concept + ")" : ""} | PV ${h.hp}/${h.maxHp}, CA ${h.armor}, init +${DND.abilityMod(h, "DEX")}, maîtrise ${prof} | ${ab}${profSk}${saves}${h.gear && h.gear.length ? " | sac : " + h.gear.join(", ") : ""}${h.conditions && h.conditions.length ? " | ÉTATS : " + h.conditions.join(", ") : ""}${h.feats ? " | atouts : " + h.feats : ""}`;
+      }
       const st = Object.entries(h.stats || {}).filter(([, v]) => v !== 0 && v !== "")
         .map(([k, v]) => `${k} ${v >= 0 ? "+" : ""}${v}`).join(", ");
-      return `• ${h.name}${h.player ? " (joué par " + h.player + ")" : ""} — ${h.concept || "aventurier"} | PV ${h.hp}/${h.maxHp}, Déf ${h.armor}${st ? " | " + st : ""}${h.gear && h.gear.length ? " | sac : " + h.gear.join(", ") : ""}${h.conditions && h.conditions.length ? " | états : " + h.conditions.join(", ") : ""}${h.abilities ? " | capacités : " + h.abilities : ""}${h.bonds ? " | liens : " + h.bonds : ""}`;
+      return `• ${h.name}${h.player ? " (joué par " + h.player + ")" : ""} — ${h.concept || "aventurier"} | PV ${h.hp}/${h.maxHp}, Déf ${h.armor}${st ? " | " + st : ""}${h.gear && h.gear.length ? " | sac : " + h.gear.join(", ") : ""}${h.conditions && h.conditions.length ? " | états : " + h.conditions.join(", ") : ""}${h.feats ? " | capacités : " + h.feats : ""}${h.bonds ? " | liens : " + h.bonds : ""}`;
     }).join("\n") : "• (aucun héros créé pour l'instant)";
+    const combat = c.combat && c.combat.active
+      ? `\n⚔️ COMBAT EN COURS — round ${c.combat.round}. Ordre d'initiative : ${c.combat.order.map((o, i) => `${i === c.combat.turn ? "▶ " : ""}${o.name} (${o.init})${o.hp != null ? " PV" + o.hp : ""}`).join(" → ")}`
+      : "";
 
     const npcs = c.npcs.length ? c.npcs.slice(-20).map(n =>
       `• ${n.name}${n.role ? " — " + n.role : ""}${n.trait ? " (" + n.trait + ")" : ""}${n.place ? " @ " + n.place : ""}${n.attitude ? " · " + n.attitude : ""}`).join("\n") : "• (aucun)";
@@ -46,8 +57,18 @@ SYSTÈME DE DÉS : ${sys.name || c.system} (${sys.help || ""})
 PITCH : ${c.pitch || g.pitch}
 ENJEU CENTRAL : ${c.stakes || "(à définir avec le MJ)"}
 SCÈNE ACTUELLE : ${c.scene && c.scene.title ? c.scene.title + (c.scene.mood ? " — ambiance : " + c.scene.mood : "") : "(aucune scène posée)"}
-Séance n°${c.session}.
-
+Séance n°${c.session}.${combat}
+${is5e ? `
+═══ RÈGLES D&D 5e (tu mènes selon la 5e ; le LORE est adapté à l'univers ci-dessus) ═══
+• Résolution : quand une action est incertaine, demande un test → 1d20 + modificateur de caractéristique (+ bonus de maîtrise si le héros maîtrise la compétence/sauvegarde). Tu NE lances PAS toi-même : émets [JET: …] et l'app calcule le bon modificateur du héros et lance.
+• Choisis la bonne caractéristique/compétence : Athlétisme(FOR) ; Acrobaties/Discrétion/Escamotage(DEX) ; Dressage/Médecine/Perception/Perspicacité/Survie(SAG) ; Arcanes/Histoire/Investigation/Nature/Religion(INT) ; Intimidation/Persuasion/Représentation/Tromperie(CHA).
+• Degré de Difficulté (DD) : Très facile 5 · Facile 10 · Moyen 15 · Difficile 20 · Très difficile 25 · Quasi impossible 30. Choisis un DD juste et annonce-le.
+• Sauvegardes : contre pièges, sorts, poisons, peur… → [JET: cible=…; sauvegarde=DEX; diff=…].
+• Combat : lance l'initiative ([COMBAT: start] démarre le suivi, l'app tire l'init des héros). Les attaques = 1d20 + mod + maîtrise vs CA ([JET: cible=…; attaque=Épée; bonus=5; diff=<CA cible>]). Dégâts = décris et applique via [PV: cible=…; delta=-X]. 20 naturel = critique (double les dés de dégâts).
+• États (5e) : applique-les via [PJ: cible=…; condition+=Empoisonné] (à terre, agrippé, aveuglé, charmé, effrayé, empoisonné, entravé, étourdi, inconscient, paralysé, pétrifié, neutralisé, invisible, épuisement).
+• À 0 PV : le héros tombe → jets de sauvegarde contre la mort. Reste dramatique mais équitable.
+• Repos : court (dés de vie) / long (PV + emplacements récupérés). Récompense l'XP en fin de rencontre si pertinent via [PJ: cible=…; xp=…].
+` : ""}
 LES HÉROS (personnages-joueurs) :
 ${heroes}
 
@@ -83,7 +104,8 @@ Tu peux modifier la partie ET l'ambiance visuelle en direct en ajoutant, À LA F
 • [QUETE: titre=Retrouver l'héritier; desc=piste vers le nord; etat=active]  (etat=active|faite)  → objectif.
 • [LIEU: nom=Fort de Braise; desc=citadelle en ruine sur la falaise]  → lieu.
 • [BESTIAIRE: nom=Goule; pv=15; menace=moyenne; trait=paralyse au toucher]  → créature/ennemi.
-• [JET: cible=Kael; comp=Discrétion; diff=13; formule=1d20+3]  → DEMANDE un jet : l'app le lance et affiche le résultat. Utilise ${sys.formula || "1d20"} comme base. Ne donne pas toi-même le résultat chiffré, laisse l'app lancer.
+• [JET: cible=Kael; comp=Discrétion; diff=15]  → DEMANDE un test de COMPÉTENCE : l'app calcule le modificateur du héros (carac + maîtrise) et lance 1d20. Variantes 5e : sauvegarde=DEX (jet de sauvegarde), carac=FOR (test de carac brut), attaque=Épée; bonus=5 (jet d'attaque vs CA=diff). Tu peux ajouter avantage=1 ou desavantage=1. Ne donne JAMAIS toi-même le résultat chiffré — laisse l'app lancer avec les vraies stats.
+• [COMBAT: start]  démarre le suivi d'initiative (l'app tire l'init des héros). [COMBAT: stop] le termine. [INIT: nom=Goule; valeur=14; pv=15]  ajoute un ennemi dans l'ordre d'initiative. [TOUR]  passe au combattant suivant.
 • [FAIT: Le pont s'effondre derrière eux]  → inscrit un événement marquant dans la chronique.
 • [MEMO: L'héritier porte une marque de naissance en forme de croissant]  → ajoute un fait durable au CANON de la campagne (à retenir pour toujours). Max 2 par réponse.
 • [AMBIANCE: theme=ember; accent=#ff5500]  → change le THÈME visuel de l'app pour coller au moment (thèmes : default, royal, ember, neon, matrix, forest, ocean, light, cream).
@@ -283,6 +305,34 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
         if (o.trait) b.trait = o.trait;
         effects.push("🐉 " + name);
       }],
+      [/\[COMBAT:\s*([^\]]+)\]/gi, (a) => {
+        const v = a.trim().toLowerCase();
+        if (/start|debut|début|on|go/.test(v)) {
+          c.combat = { active: true, round: 1, turn: 0, order: [] };
+          c.heroes.forEach(h => c.combat.order.push({ name: h.name, id: h.id, isHero: true, init: (typeof Dice !== "undefined" ? Dice.initiative(h).total : 10), hp: h.hp }));
+          c.combat.order.sort((x, y) => y.init - x.init);
+          State.log({ kind: "event", text: "⚔️ Combat ! Initiative : " + c.combat.order.map(o => o.name + "(" + o.init + ")").join(" → ") });
+          effects.push("⚔️ combat");
+        } else if (/stop|fin|end|off/.test(v)) {
+          if (c.combat) c.combat.active = false;
+          State.log({ kind: "event", text: "🏁 Fin du combat." });
+          effects.push("🏁 combat");
+        }
+      }],
+      [/\[INIT:\s*([^\]]+)\]/gi, (a) => {
+        const o = kv(a); const name = o.nom || o.name; if (!name) return;
+        if (!c.combat || !c.combat.active) c.combat = { active: true, round: 1, turn: 0, order: c.combat ? c.combat.order : [] };
+        c.combat.active = true;
+        c.combat.order.push({ name, init: parseInt(o.valeur || o.init, 10) || 10, hp: o.pv ? parseInt(o.pv, 10) : null, isHero: false });
+        c.combat.order.sort((x, y) => y.init - x.init);
+        effects.push("🎯 init " + name);
+      }],
+      [/\[TOUR\]/gi, () => {
+        if (!c.combat || !c.combat.active) return;
+        c.combat.turn++;
+        if (c.combat.turn >= c.combat.order.length) { c.combat.turn = 0; c.combat.round++; }
+        effects.push("⏭️ tour");
+      }],
       [/\[FAIT:\s*([^\]]+)\]/gi, (a) => { State.log({ kind: "event", text: a.trim() }); effects.push("⚡ fait"); }],
       [/\[MEMO:\s*([^\]]+)\]/gi, (a) => { State.remember(a.trim()); effects.push("🧠 canon"); }],
       [/\[AMBIANCE:\s*([^\]]+)\]/gi, (a) => {
@@ -312,7 +362,15 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
     const rolls = [];
     text = text.replace(/\[JET:\s*([^\]]+)\]/gi, (m, a) => {
       const o = {}; a.split(";").forEach(p => { const i = p.indexOf("="); if (i > 0) o[p.slice(0, i).trim().toLowerCase()] = p.slice(i + 1).trim(); });
-      rolls.push({ who: o.cible || o.name || "", skill: o.comp || o.skill || "", dc: parseInt(o.diff || o.dc, 10), formula: o.formule || o.formula });
+      rolls.push({
+        who: o.cible || o.name || "",
+        skill: o.comp || o.skill || "", save: (o.sauvegarde || o.save || "").toUpperCase(),
+        ability: (o.carac || o.ability || "").toUpperCase(), attack: o.attaque || o.attack || "",
+        bonus: parseInt(o.bonus, 10) || 0,
+        adv: /^(1|oui|true|avantage)$/i.test(o.avantage || o.adv || ""),
+        dis: /^(1|oui|true|desavantage)$/i.test(o.desavantage || o.dis || ""),
+        dc: parseInt(o.diff || o.dc, 10), formula: o.formule || o.formula,
+      });
       return "";
     });
     return { text: text.replace(/\n{3,}/g, "\n\n").trim(), rolls };

@@ -145,11 +145,19 @@ const UI = {
     for (const r of rolls) {
       const c = State.current();
       const h = State.heroByName(r.who);
-      let formula = r.formula || (DATA.DICE_SYSTEMS[c.system] || {}).formula || "1d20";
       const dc = r.dc || (DATA.DICE_SYSTEMS[c.system] || {}).defaultDC;
-      const res = Dice.check(formula, dc, c.system);
-      Dice.show(res, (r.who ? r.who + " · " : "") + (r.skill || "Jet"));
-      State.log({ kind: "dice", text: `${r.who || ""} ${r.skill || ""} : ${res.detail} = ${res.total} → ${res.outcome}` });
+      if (c.system === "dnd5e" && h && (r.skill || r.save || r.ability || r.attack)) {
+        const kind = r.skill ? "skill" : r.save ? "save" : r.attack ? "attack" : "ability";
+        const key = r.skill || r.save || r.attack || r.ability;
+        const res = Dice.check5e(h, kind, key, dc, { bonus: r.bonus, adv: r.adv, dis: r.dis });
+        Dice.show(res, res.label);
+        State.log({ kind: "dice", text: `${res.label} : ${res.detail} = ${res.total} vs DD ${dc} → ${res.outcome}` });
+      } else {
+        const formula = r.formula || (DATA.DICE_SYSTEMS[c.system] || {}).formula || "1d20";
+        const res = Dice.check(formula, dc, c.system);
+        Dice.show(res, (r.who ? r.who + " · " : "") + (r.skill || r.save || "Jet"));
+        State.log({ kind: "dice", text: `${r.who || ""} ${r.skill || r.save || ""} : ${res.detail} = ${res.total} → ${res.outcome}` });
+      }
     }
     if (mode === "play") this.renderPlay(); else this.renderOracle();
     this.renderHeader();
@@ -170,18 +178,24 @@ const UI = {
      ============================================================ */
   renderHeroes() {
     const c = State.current();
+    const is5e = c.system === "dnd5e";
     const el = document.getElementById("view-heroes");
     const cards = c.heroes.map(h => {
       const hpPct = Math.round((h.hp / Math.max(1, h.maxHp)) * 100);
-      const stats = Object.entries(h.stats || {}).map(([k, v]) => `<span class="stat-pill">${this.esc(k.slice(0, 3))} <b>${v >= 0 ? "+" : ""}${v}</b></span>`).join("");
+      const stats = is5e
+        ? DND.ABILITY_ORDER.map(a => `<span class="stat-pill">${a} <b>${DND.modStr(h.abilities[a])}</b> <i>${h.abilities[a] || 10}</i></span>`).join("")
+        : Object.entries(h.stats || {}).map(([k, v]) => `<span class="stat-pill">${this.esc(k.slice(0, 3))} <b>${v >= 0 ? "+" : ""}${v}</b></span>`).join("");
+      const subtitle = is5e
+        ? `${this.esc(h.race)} · ${this.esc(h.cls)} niv.${h.level}`
+        : this.esc(h.concept || "—");
       return `<div class="card hero-card" onclick="UI.editHero('${h.id}')">
         <div class="hero-top">
           <div class="hero-ava">${h.avatar}</div>
           <div class="hero-id">
             <div class="hero-name">${this.esc(h.name)}</div>
-            <div class="hero-concept">${this.esc(h.concept || "—")}${h.player ? " · <span class='hero-player'>" + this.esc(h.player) + "</span>" : ""}</div>
+            <div class="hero-concept">${subtitle}${h.player ? " · <span class='hero-player'>" + this.esc(h.player) + "</span>" : ""}</div>
           </div>
-          <div class="hero-armor">🛡️ ${h.armor}</div>
+          <div class="hero-armor">🛡️ ${h.armor}${is5e ? `<span class="prof-b">maît. +${DND.profBonus(h.level)}</span>` : ""}</div>
         </div>
         <div class="hp-bar"><div class="hp-fill ${hpPct < 30 ? "low" : ""}" style="width:${hpPct}%"></div><span class="hp-txt">${h.hp} / ${h.maxHp} PV</span></div>
         ${stats ? `<div class="stat-row">${stats}</div>` : ""}
@@ -200,26 +214,77 @@ const UI = {
   editHero(id) {
     const c = State.current();
     const h = State.hero(id); if (!h) return;
+    const is5e = c.system === "dnd5e";
     const el = document.getElementById("view-heroes");
     const avatars = DATA.AVATARS.map(a => `<button class="ava-opt ${a === h.avatar ? "sel" : ""}" onclick="UI.setHeroField('${id}','avatar','${a}')">${a}</button>`).join("");
-    const statInputs = c.attrs.map(a =>
-      `<label class="stat-edit">${this.esc(a)}<input type="number" value="${h.stats[a] || 0}" onchange="UI.setHeroStat('${id}','${this.esc(a)}',this.value)"></label>`).join("");
-    el.innerHTML = `
-      <button class="btn btn-ghost btn-sm" onclick="UI.renderHeroes()">← Retour</button>
-      <div class="card">
-        <div class="ava-picker">${avatars}</div>
-        <label class="f">Nom du personnage<input value="${this.esc(h.name)}" onchange="UI.setHeroField('${id}','name',this.value)"></label>
-        <label class="f">Joueur (à la table)<input value="${this.esc(h.player)}" placeholder="ex : Loris" onchange="UI.setHeroField('${id}','player',this.value)"></label>
-        <label class="f">Concept / classe / rôle<input value="${this.esc(h.concept)}" placeholder="ex : Rôdeur elfe, Netrunner…" onchange="UI.setHeroField('${id}','concept',this.value)"></label>
+
+    let body;
+    if (is5e) {
+      const abInputs = DND.ABILITY_ORDER.map(a => `<label class="ab-edit">
+        <span class="ab-key">${a}</span>
+        <input type="number" min="1" max="30" value="${h.abilities[a] || 10}" onchange="UI.setAbility('${id}','${a}',this.value)">
+        <span class="ab-mod" id="mod-${id}-${a}">${DND.modStr(h.abilities[a])}</span></label>`).join("");
+      const cl = DND.CLASSES[h.cls] || {};
+      const skillGroups = Object.entries(DND.SKILLS).map(([sk, ab]) => {
+        const on = (h.skillProfs || []).includes(sk);
+        const m = DND.skillMod(h, sk);
+        return `<button class="sk-chip ${on ? "on" : ""}" onclick="UI.toggleSkill('${id}','${this.esc(sk)}')">${this.esc(sk)} <b>${m >= 0 ? "+" : ""}${m}</b> <i>${ab}</i></button>`;
+      }).join("");
+      const saveChips = DND.ABILITY_ORDER.map(a => {
+        const on = (h.saveProfs || []).includes(a);
+        const m = DND.saveMod(h, a);
+        return `<button class="sk-chip ${on ? "on" : ""}" onclick="UI.toggleSave('${id}','${a}')">${a} <b>${m >= 0 ? "+" : ""}${m}</b></button>`;
+      }).join("");
+      body = `
+        <div class="two">
+          <label class="f">Espèce (race)<select onchange="UI.setHeroField('${id}','race',this.value)">${Object.keys(DND.RACES).map(r => `<option ${r === h.race ? "selected" : ""}>${r}</option>`).join("")}</select></label>
+          <label class="f">Classe<select onchange="UI.setHeroClass('${id}',this.value)">${Object.keys(DND.CLASSES).map(cl => `<option ${cl === h.cls ? "selected" : ""}>${cl}</option>`).join("")}</select></label>
+          <label class="f">Niveau<input type="number" min="1" max="20" value="${h.level}" onchange="UI.setHeroLevel('${id}',this.value)"></label>
+          <label class="f">Sous-classe / archétype<input value="${this.esc(h.concept)}" placeholder="optionnel" onchange="UI.setHeroField('${id}','concept',this.value)"></label>
+        </div>
+        <div class="race-note">${this.esc((DND.RACES[h.race] || {}).note || "")} · maîtrise <b>+${DND.profBonus(h.level)}</b></div>
+
+        <h3 class="mini-h3">Caractéristiques <button class="gen-btn" onclick="UI.genAbilities('${id}','array')">Tableau standard</button><button class="gen-btn" onclick="UI.genAbilities('${id}','roll')">🎲 4d6</button></h3>
+        <div class="ab-grid">${abInputs}</div>
+
+        <div class="two">
+          <label class="f">PV actuels<input type="number" value="${h.hp}" onchange="UI.setHeroHp('${id}',this.value)"></label>
+          <label class="f">PV max<input type="number" value="${h.maxHp}" onchange="UI.setHeroHp('${id}',this.value,true)"></label>
+          <label class="f">CA (armure)<input type="number" value="${h.armor}" onchange="UI.setHeroField('${id}','armor',this.value)"></label>
+          <label class="f">Vitesse (m)<input type="number" step="1.5" value="${h.speed}" onchange="UI.setHeroField('${id}','speed',this.value)"></label>
+        </div>
+        <div class="hd-line">🎲 Dés de vie : <b>${this.esc(h.hitDice)}</b> · Init : <b>+${DND.abilityMod(h, "DEX")}</b> · Jets de mort : ${"●".repeat(h.deathSaves.s)}${"○".repeat(3 - h.deathSaves.s)} / ${"✕".repeat(h.deathSaves.f)}${"○".repeat(3 - h.deathSaves.f)}</div>
+
+        <h3 class="mini-h3">Sauvegardes maîtrisées</h3>
+        <div class="sk-wrap">${saveChips}</div>
+        <h3 class="mini-h3">Compétences maîtrisées</h3>
+        <div class="sk-wrap">${skillGroups}</div>
+
+        <label class="f">Sorts / emplacements<textarea rows="2" onchange="UI.setHeroField('${id}','spells',this.value)" placeholder="ex : niv.1 (3), Projectile magique, Bouclier…">${this.esc(h.spells)}</textarea></label>
+        <label class="f">Dons / capacités / atouts<textarea rows="2" onchange="UI.setHeroField('${id}','feats',this.value)">${this.esc(h.feats)}</textarea></label>`;
+    } else {
+      const statInputs = c.attrs.map(a =>
+        `<label class="stat-edit">${this.esc(a)}<input type="number" value="${h.stats[a] || 0}" onchange="UI.setHeroStat('${id}','${this.esc(a)}',this.value)"></label>`).join("");
+      body = `
+        <label class="f">Concept / classe / rôle<input value="${this.esc(h.concept)}" placeholder="ex : Netrunner…" onchange="UI.setHeroField('${id}','concept',this.value)"></label>
         <div class="two">
           <label class="f">PV actuels<input type="number" value="${h.hp}" onchange="UI.setHeroField('${id}','hp',this.value)"></label>
           <label class="f">PV max<input type="number" value="${h.maxHp}" onchange="UI.setHeroField('${id}','maxHp',this.value)"></label>
           <label class="f">Défense<input type="number" value="${h.armor}" onchange="UI.setHeroField('${id}','armor',this.value)"></label>
           <label class="f">XP<input type="number" value="${h.xp}" onchange="UI.setHeroField('${id}','xp',this.value)"></label>
         </div>
-        <h3 class="mini-h3">Attributs (${this.esc(c.system)})</h3>
+        <h3 class="mini-h3">Attributs (${this.esc((DATA.DICE_SYSTEMS[c.system] || {}).name || c.system)})</h3>
         <div class="stats-edit">${statInputs}</div>
-        <label class="f">Capacités spéciales<textarea rows="2" onchange="UI.setHeroField('${id}','abilities',this.value)">${this.esc(h.abilities)}</textarea></label>
+        <label class="f">Capacités spéciales<textarea rows="2" onchange="UI.setHeroField('${id}','feats',this.value)">${this.esc(h.feats)}</textarea></label>`;
+    }
+
+    el.innerHTML = `
+      <button class="btn btn-ghost btn-sm" onclick="UI.renderHeroes()">← Retour</button>
+      <div class="card">
+        <div class="ava-picker">${avatars}</div>
+        <label class="f">Nom du personnage<input value="${this.esc(h.name)}" onchange="UI.setHeroField('${id}','name',this.value)"></label>
+        <label class="f">Joueur (à la table)<input value="${this.esc(h.player)}" placeholder="ex : Loris" onchange="UI.setHeroField('${id}','player',this.value)"></label>
+        ${body}
         <label class="f">Inventaire (un objet par ligne)<textarea rows="3" onchange="UI.setHeroGear('${id}',this.value)">${(h.gear || []).map(x => this.esc(x)).join("\n")}</textarea></label>
         <label class="f">États / conditions (virgules)<input value="${(h.conditions || []).map(x => this.esc(x)).join(", ")}" onchange="UI.setHeroCond('${id}',this.value)"></label>
         <label class="f">Liens / relations<input value="${this.esc(h.bonds)}" onchange="UI.setHeroField('${id}','bonds',this.value)"></label>
@@ -227,7 +292,26 @@ const UI = {
         <button class="btn btn-danger btn-sm" onclick="UI.delHero('${id}')">Supprimer ce héros</button>
       </div>`;
   },
-  setHeroField(id, f, v) { const h = State.hero(id); if (!h) return; if (["hp", "maxHp", "armor", "xp"].includes(f)) v = parseInt(v, 10) || 0; h[f] = v; State.save(); if (f === "avatar") this.editHero(id); this.renderHeader(); },
+  setAbility(id, a, v) { const h = State.hero(id); h.abilities[a] = Math.max(1, Math.min(30, parseInt(v, 10) || 10)); State.save(); const el = document.getElementById(`mod-${id}-${a}`); if (el) el.textContent = DND.modStr(h.abilities[a]); this.renderHeader(); },
+  setHeroClass(id, v) { const h = State.hero(id); h.cls = v; const cl = DND.CLASSES[v]; if (cl) { h.saveProfs = cl.saves.slice(); h.hitDice = h.level + "d" + cl.hd; } State.save(); this.editHero(id); },
+  setHeroLevel(id, v) { const h = State.hero(id); h.level = Math.max(1, Math.min(20, parseInt(v, 10) || 1)); const cl = DND.CLASSES[h.cls]; if (cl) h.hitDice = h.level + "d" + cl.hd; State.save(); this.editHero(id); },
+  setHeroHp(id, v, max) { const h = State.hero(id); h._hpTouched = true; if (max) h.maxHp = parseInt(v, 10) || 0; else h.hp = parseInt(v, 10) || 0; State.save(); },
+  toggleSkill(id, sk) { const h = State.hero(id); h.skillProfs = h.skillProfs || []; const i = h.skillProfs.indexOf(sk); if (i < 0) h.skillProfs.push(sk); else h.skillProfs.splice(i, 1); State.save(); this.editHero(id); },
+  toggleSave(id, a) { const h = State.hero(id); h.saveProfs = h.saveProfs || []; const i = h.saveProfs.indexOf(a); if (i < 0) h.saveProfs.push(a); else h.saveProfs.splice(i, 1); State.save(); this.editHero(id); },
+  genAbilities(id, mode) {
+    const h = State.hero(id);
+    let vals;
+    if (mode === "array") vals = DND.STANDARD_ARRAY.slice();
+    else vals = DND.ABILITY_ORDER.map(() => Dice.roll("4d6k3").total).sort((a, b) => b - a);
+    // affecte aux caracs principales de la classe en priorité
+    const cl = DND.CLASSES[h.cls] || { primary: [] };
+    const order = [...cl.primary, ...DND.ABILITY_ORDER.filter(a => !cl.primary.includes(a))];
+    order.forEach((a, i) => { h.abilities[a] = vals[i]; });
+    State.applyClassDefaults(h);
+    State.save(); this.editHero(id);
+    this.toast(mode === "array" ? "Tableau standard réparti (caracs de classe en priorité)" : "🎲 Caracs tirées au 4d6 garde 3", "ok");
+  },
+  setHeroField(id, f, v) { const h = State.hero(id); if (!h) return; if (["hp", "maxHp", "armor", "xp"].includes(f)) v = parseInt(v, 10) || 0; else if (f === "speed") v = parseFloat(v) || 0; h[f] = v; State.save(); if (f === "avatar") this.editHero(id); this.renderHeader(); },
   setHeroStat(id, k, v) { const h = State.hero(id); h.stats[k] = parseInt(v, 10) || 0; State.save(); },
   setHeroGear(id, v) { const h = State.hero(id); h.gear = v.split("\n").map(s => s.trim()).filter(Boolean); State.save(); },
   setHeroCond(id, v) { const h = State.hero(id); h.conditions = v.split(",").map(s => s.trim()).filter(Boolean); State.save(); },
@@ -306,22 +390,29 @@ const UI = {
      ============================================================ */
   renderDice() {
     const c = State.current();
+    const is5e = c.system === "dnd5e";
     const el = document.getElementById("view-dice");
     const sys = DATA.DICE_SYSTEMS[c.system] || DATA.DICE_SYSTEMS.d20;
     const quick = ["1d20", "1d12", "1d10", "1d8", "1d6", "1d4", "1d100", "2d6", "3d6", "4d6k3"];
-    el.innerHTML = `
+
+    const checkCard = is5e ? `
       <div class="card">
-        <h3>🎲 Jet rapide</h3>
-        <div class="dice-grid">${quick.map(f => `<button class="dice-btn" onclick="UI.quickRoll('${f}')">${f}</button>`).join("")}</div>
-      </div>
-      <div class="card">
-        <h3>✍️ Formule libre</h3>
-        <div class="two-inline"><input id="diceFormula" value="1d20+3" placeholder="ex : 2d6+1, 4d6k3"><button class="btn btn-primary" onclick="UI.rollFormula()">Lancer</button></div>
-        <div class="adv-row">
-          <label class="chk"><input type="checkbox" id="advChk"> Avantage</label>
-          <label class="chk"><input type="checkbox" id="disChk"> Désavantage</label>
+        <h3>🎯 Test D&D 5e <span class="h3-note">1d20 + carac (+ maîtrise)</span></h3>
+        <div class="two">
+          <label class="f">Héros<select id="ckHero" onchange="UI.previewCheck()">${c.heroes.map(h => `<option value="${h.id}">${h.avatar} ${this.esc(h.name)}</option>`).join("") || "<option>—</option>"}</select></label>
+          <label class="f">Type<select id="ckKind" onchange="UI.fillCheckKeys();UI.previewCheck()">
+            <option value="skill">Compétence</option><option value="save">Sauvegarde</option><option value="ability">Carac brute</option></select></label>
+          <label class="f" id="ckKeyWrap">Compétence<select id="ckKey" onchange="UI.previewCheck()">${Object.keys(DND.SKILLS).map(s => `<option>${s}</option>`).join("")}</select></label>
+          <label class="f">DD<input type="number" id="ckDC" value="15"></label>
         </div>
-      </div>
+        <div class="dc-help">DD : ${DND.DC_SCALE.map(d => `${d.name} <b>${d.dc}</b>`).join(" · ")}</div>
+        <div class="adv-row">
+          <label class="chk"><input type="checkbox" id="adv5e"> Avantage</label>
+          <label class="chk"><input type="checkbox" id="dis5e"> Désavantage</label>
+          <span class="ck-preview" id="ckPreview"></span>
+        </div>
+        <button class="btn btn-primary btn-block" onclick="UI.rollCheck5e()">🎯 Lancer le test</button>
+      </div>` : `
       <div class="card">
         <h3>🎯 Jet de compétence <span class="h3-note">${this.esc(sys.name)}</span></h3>
         <div class="hint">${this.esc(sys.help)}</div>
@@ -333,7 +424,100 @@ const UI = {
         </div>
         <button class="btn btn-primary btn-block" onclick="UI.rollCheck()">🎯 Jet de compétence</button>
       </div>`;
+
+    el.innerHTML = `
+      ${this.combatCard()}
+      <div class="card">
+        <h3>🎲 Jet rapide</h3>
+        <div class="dice-grid">${quick.map(f => `<button class="dice-btn" onclick="UI.quickRoll('${f}')">${f}</button>`).join("")}</div>
+      </div>
+      ${checkCard}
+      <div class="card">
+        <h3>✍️ Formule libre</h3>
+        <div class="two-inline"><input id="diceFormula" value="1d20+3" placeholder="ex : 2d6+1, 4d6k3"><button class="btn btn-primary" onclick="UI.rollFormula()">Lancer</button></div>
+        <div class="adv-row">
+          <label class="chk"><input type="checkbox" id="advChk"> Avantage</label>
+          <label class="chk"><input type="checkbox" id="disChk"> Désavantage</label>
+        </div>
+      </div>`;
+    if (is5e) this.previewCheck();
   },
+
+  fillCheckKeys() {
+    const kind = document.getElementById("ckKind").value;
+    const wrap = document.getElementById("ckKeyWrap");
+    if (kind === "skill") wrap.innerHTML = `Compétence<select id="ckKey" onchange="UI.previewCheck()">${Object.keys(DND.SKILLS).map(s => `<option>${s}</option>`).join("")}</select>`;
+    else wrap.innerHTML = `Caractéristique<select id="ckKey" onchange="UI.previewCheck()">${DND.ABILITY_ORDER.map(a => `<option value="${a}">${DND.ABILITIES[a]}</option>`).join("")}</select>`;
+  },
+  previewCheck() {
+    const c = State.current();
+    const h = State.hero(document.getElementById("ckHero")?.value); if (!h) return;
+    const kind = document.getElementById("ckKind").value;
+    const key = document.getElementById("ckKey").value;
+    const b = DND.buildRoll(h, kind, key);
+    const el = document.getElementById("ckPreview");
+    if (el) el.innerHTML = `→ <b>${b.formula}</b>`;
+  },
+  rollCheck5e() {
+    const c = State.current();
+    const h = State.hero(document.getElementById("ckHero").value); if (!h) { this.toast("Ajoute d'abord un héros", "warn"); return; }
+    const kind = document.getElementById("ckKind").value;
+    const key = document.getElementById("ckKey").value;
+    const dc = parseInt(document.getElementById("ckDC").value, 10);
+    const res = Dice.check5e(h, kind, key, dc, { adv: document.getElementById("adv5e").checked, dis: document.getElementById("dis5e").checked });
+    Dice.show(res, res.label);
+    State.log({ kind: "dice", text: `${res.label} : ${res.detail} = ${res.total} vs DD ${dc} → ${res.outcome}` });
+  },
+
+  /* Suivi d'initiative de combat */
+  combatCard() {
+    const c = State.current();
+    const cb = c.combat || { active: false, order: [] };
+    if (!cb.active) {
+      return `<div class="card combat-card">
+        <h3>⚔️ Combat</h3>
+        <div class="hint">Lance l'initiative de tous les héros et mène le combat au tour par tour.</div>
+        <button class="btn btn-primary btn-block" onclick="UI.startCombat()">⚔️ Démarrer un combat</button>
+      </div>`;
+    }
+    const rows = cb.order.map((o, i) => `<div class="init-row ${i === cb.turn ? "cur" : ""} ${o.isHero ? "hero" : "foe"}">
+      <span class="init-num">${o.init}</span>
+      <span class="init-name">${i === cb.turn ? "▶ " : ""}${this.esc(o.name)}</span>
+      ${o.hp != null ? `<span class="init-hp">${o.hp} PV</span>` : ""}
+      <button class="wdel" onclick="UI.removeInit(${i})">✕</button>
+    </div>`).join("");
+    return `<div class="card combat-card active">
+      <h3>⚔️ Combat — round ${cb.round}</h3>
+      <div class="init-list">${rows}</div>
+      <div class="two-inline" style="margin-top:8px">
+        <input id="foeName" placeholder="Ajouter un ennemi…"><input id="foeInit" type="number" placeholder="init" style="max-width:70px">
+        <button class="btn btn-ghost btn-sm" onclick="UI.addFoe()">＋</button>
+      </div>
+      <div class="two" style="margin-top:8px">
+        <button class="btn btn-primary" onclick="UI.nextTurn()">⏭️ Tour suivant</button>
+        <button class="btn btn-danger" onclick="UI.stopCombat()">🏁 Fin du combat</button>
+      </div>
+    </div>`;
+  },
+  startCombat() {
+    const c = State.current();
+    c.combat = { active: true, round: 1, turn: 0, order: [] };
+    c.heroes.forEach(h => c.combat.order.push({ name: h.name, id: h.id, isHero: true, init: Dice.initiative(h).total, hp: h.hp }));
+    c.combat.order.sort((a, b) => b.init - a.init);
+    State.log({ kind: "event", text: "⚔️ Combat ! Initiative : " + c.combat.order.map(o => o.name + "(" + o.init + ")").join(" → ") });
+    State.save(); this.renderDice();
+  },
+  addFoe() {
+    const c = State.current();
+    const name = document.getElementById("foeName").value.trim(); if (!name) return;
+    const init = parseInt(document.getElementById("foeInit").value, 10) || Dice.roll("1d20").total;
+    c.combat.order.push({ name, init, isHero: false, hp: null });
+    c.combat.order.sort((a, b) => b.init - a.init);
+    State.save(); this.renderDice();
+  },
+  removeInit(i) { const c = State.current(); c.combat.order.splice(i, 1); if (c.combat.turn >= c.combat.order.length) c.combat.turn = 0; State.save(); this.renderDice(); },
+  nextTurn() { const c = State.current(); c.combat.turn++; if (c.combat.turn >= c.combat.order.length) { c.combat.turn = 0; c.combat.round++; } State.save(); this.renderDice(); },
+  stopCombat() { const c = State.current(); c.combat.active = false; State.log({ kind: "event", text: "🏁 Fin du combat." }); State.save(); this.renderDice(); },
   quickRoll(f) { const r = Dice.roll(f); Dice.show(r); State.log({ kind: "dice", text: `${f} = ${r.total} (${r.detail})` }); this.toast(`🎲 ${f} → <b>${r.total}</b>`); },
   rollFormula() {
     const f = document.getElementById("diceFormula").value;
@@ -459,7 +643,7 @@ const UI = {
       </div>
       <div class="foot">Oracle · compagnon de jeu de rôle · v1 — tes données restent sur ton appareil.</div>`;
   },
-  changeGenre(v) { const c = State.current(); c.genre = v; const g = DATA.GENRES[v]; if (g) { if (!c.pitch) c.pitch = g.pitch; c.attrs = g.attrs.slice(); c.system = g.system; c.theme = g.theme; } State.save(); this.renderTable(); this.renderHeader(); State.applyTheme(); },
+  changeGenre(v) { const c = State.current(); c.genre = v; const g = DATA.GENRES[v]; if (g) { if (!c.pitch) c.pitch = g.pitch; if (c.system !== "dnd5e") c.attrs = g.attrs.slice(); c.theme = g.theme; } State.save(); this.renderTable(); this.renderHeader(); State.applyTheme(); },
   setAttrs(v) { const c = State.current(); c.attrs = v.split(",").map(s => s.trim()).filter(Boolean); State.save(); },
   setTheme(k) { const c = State.current(); c.theme = k; State.save(); State.applyTheme(); this.renderTable(); this.renderHeader(); },
   setStyleReset() { const c = State.current(); c.style = {}; c.customCss = ""; State.save(); State.applyTheme(); this.renderTable(); },

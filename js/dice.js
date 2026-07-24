@@ -72,6 +72,28 @@ const Dice = {
     return Object.assign(r, { dc, outcome, cls });
   },
 
+  /* Jet D&D 5e depuis un héros : calcule le modificateur (carac + maîtrise)
+     puis lance 1d20+mod contre le DD. kind: skill|save|ability|attack */
+  check5e(hero, kind, key, dc, opt = {}) {
+    const b = DND.buildRoll(hero, kind, key, opt.bonus || 0);
+    const res = this.check(b.formula, dc, "dnd5e");
+    res.label = (hero ? hero.name + " · " : "") + b.label;
+    res.mod = b.mod;
+    if (opt.adv || opt.dis) { // relance et garde meilleur/pire dé de base
+      const alt = this.check(b.formula, dc, "dnd5e");
+      const better = opt.adv ? (alt.total > res.total) : (alt.total < res.total);
+      if (better) { alt.label = res.label + (opt.adv ? " (avantage)" : " (désavantage)"); return alt; }
+      res.label += opt.adv ? " (avantage)" : " (désavantage)";
+    }
+    return res;
+  },
+
+  /* Initiative 5e : 1d20 + mod de DEX */
+  initiative(hero) {
+    const m = DND.abilityMod(hero, "DEX");
+    return this.roll("1d20" + (m >= 0 ? "+" + m : m));
+  },
+
   /* Anime la popup de dé. */
   show(result, label) {
     const ov = document.getElementById("diceOverlay");

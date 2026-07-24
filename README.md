@@ -1,6 +1,17 @@
 # 🔮 Oracle — ton compagnon de jeu de rôle adaptatif
 
-**Oracle** est une app pour mener et jouer tes parties de **jeu de rôle** à ta table (pensée pour un petit groupe : toi en **MJ**, tes 3-4 joueurs). Un **co-Maître du Jeu IA** t'assiste en **temps réel** : tu entres ce que font/choisissent les joueurs, il narre, incarne les PNJ, applique les conséquences, demande les jets, et **tient toute ta campagne à jour tout seul**. Il s'adapte à **n'importe quel univers** (fantasy, SF, cyberpunk, horreur, post-apo, pirates, ton monde sur-mesure…), à ton **ton** et à tes **envies**.
+**Oracle** est une app pour mener et jouer tes parties de **jeu de rôle** à ta table (pensée pour un petit groupe : toi en **MJ**, tes 3-4 joueurs). Les **mécaniques suivent les règles D&D 5e** (basées sur le SRD ouvert) ; le **lore et l'univers, eux, sont 100 % adaptables** (fantasy, SF, cyberpunk, horreur, post-apo, pirates, ton monde sur-mesure…). Un **co-Maître du Jeu IA** t'assiste en **temps réel** : tu entres ce que font/choisissent les joueurs, il narre en 5e (demande les bons tests, fixe les DD, gère le combat au tour par tour), incarne les PNJ, applique les conséquences, et **tient toute ta campagne à jour tout seul**.
+
+## 🐉 Socle D&D 5e (lore adaptable)
+
+- **6 caractéristiques** (Force, Dextérité, Constitution, Intelligence, Sagesse, Charisme) avec **modificateurs** calculés automatiquement.
+- **12 classes** (dé de vie, jets de sauvegarde et carac principale corrects), **espèces/races**, **niveaux 1-20** avec **bonus de maîtrise** automatique.
+- **18 compétences** liées à leur caractéristique, avec **maîtrise** — le modificateur total est calculé pour toi.
+- **Tests, sauvegardes, tests de carac, jets d'attaque** : l'app tire le bon modificateur du héros et lance ; **échelle de DD 5e** (Facile 10 · Moyen 15 · Difficile 20…).
+- **Combat au tour par tour** : suivi d'**initiative** (héros + ennemis), rounds, PV.
+- **Conditions 5e**, jets de mort, dés de vie, CA, vitesse, sorts.
+- **Génération de perso** : tableau standard ou 4d6 garde-3, réparti sur les caracs de classe.
+- **L'Oracle mène en 5e** : il connaît les règles, demande les bons jets et fixe des DD justes — tout en gardant le décor de **ton** univers. Le système reste changeable (2d6/PbtA, d100…) dans Table si tu préfères un autre moteur.
 
 C'est le pendant « table de JDR » de **LifeQuest** : même philosophie (PWA installable, zéro compte, coach/oracle IA qui adapte le fond **et** la forme en direct), poussée pour le rôle-play.
 
@@ -59,7 +70,8 @@ Pendant la partie, l'IA peut émettre des commandes internes que l'app **exécut
 | `[OBJET: cible=…; ajoute=…\|retire=…]` | inventaire |
 | `[QUETE: titre=…; etat=active\|faite]` | objectif |
 | `[LIEU: …]` · `[BESTIAIRE: …]` | lieux & créatures |
-| `[JET: cible=…; diff=…; formule=1d20+3]` | demande un jet (l'app le lance) |
+| `[JET: cible=…; comp=Discrétion; diff=15]` | test 5e (l'app calcule le mod du héros) ; variantes `sauvegarde=DEX`, `carac=FOR`, `attaque=…; bonus=5` |
+| `[COMBAT: start/stop]` · `[INIT: nom=…; valeur=…]` · `[TOUR]` | combat & initiative |
 | `[FAIT: …]` · `[MEMO: …]` | chronique & canon durable |
 | `[AMBIANCE: theme=…; accent=…]` · `[STYLE: …]` | ambiance visuelle en direct |
 
@@ -74,8 +86,9 @@ HTML/CSS/JS vanilla, zéro dépendance, zéro build. PWA avec service worker. Ba
 | Fichier | Rôle |
 |---|---|
 | `js/data.js` | Univers, tons, systèmes de dés, thèmes, fournisseurs IA, générateurs |
-| `js/state.js` | Campagnes, héros, chronique, canon, persistance localStorage |
-| `js/dice.js` | Moteur de dés & jets de compétence |
+| `js/dnd.js` | Moteur de règles D&D 5e (caracs, compétences, classes, races, conditions, DD, maîtrise) |
+| `js/state.js` | Campagnes, héros, chronique, canon, combat, persistance localStorage |
+| `js/dice.js` | Moteur de dés & jets 5e (test/sauvegarde/attaque/initiative) |
 | `js/oracle.js` | Co-MJ IA : prompt système, directives, adaptateurs API, secours hors-ligne |
 | `js/ui.js` | Rendu des vues (Partie, Héros, Univers, Dés, Oracle, Table) |
 | `js/app.js` | Onboarding & démarrage |

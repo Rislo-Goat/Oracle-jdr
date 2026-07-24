@@ -261,3 +261,38 @@ textarea { resize:none; line-height:1.4; }
 
 hr { border:none; border-top:1px solid var(--border); margin:8px 0; }
 strong { font-weight:800; }
+
+/* ============ D&D 5e ============ */
+.prof-b { display:block; font-size:10px; color:var(--muted); font-weight:600; text-align:right; margin-top:2px; }
+.stat-pill i { color:var(--muted); font-style:normal; font-size:10px; opacity:.8; }
+.race-note { font-size:12px; color:var(--muted); margin:-4px 0 12px; line-height:1.4; }
+.mini-h3 .gen-btn { margin-left:auto; background:var(--card2); border:1px solid var(--border); border-radius:8px; padding:4px 9px; font-size:11px; color:var(--accent2); font-weight:600; text-transform:none; letter-spacing:0; }
+.mini-h3 .gen-btn + .gen-btn { margin-left:6px; }
+.ab-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin-bottom:6px; }
+.ab-edit { display:flex; flex-direction:column; align-items:center; gap:3px; background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:9px 4px; }
+.ab-key { font-size:11px; font-weight:800; color:var(--muted); letter-spacing:.04em; }
+.ab-edit input { text-align:center; padding:6px; font-size:16px; font-weight:800; border:none; background:transparent; }
+.ab-mod { font-size:14px; font-weight:800; color:var(--accent2); }
+.hd-line { font-size:12.5px; color:var(--muted); margin:10px 0; padding:9px 11px; background:var(--bg2); border-radius:10px; line-height:1.6; }
+.hd-line b { color:var(--text); }
+.sk-wrap { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+.sk-chip { background:var(--bg2); border:1px solid var(--border); border-radius:9px; padding:6px 10px; font-size:12px; color:var(--muted); }
+.sk-chip b { color:var(--text); }
+.sk-chip i { font-style:normal; font-size:9.5px; opacity:.6; margin-left:2px; }
+.sk-chip.on { background:color-mix(in srgb, var(--accent) 22%, var(--card)); border-color:var(--accent); color:var(--text); }
+.sk-chip.on b { color:var(--accent2); }
+.dc-help { font-size:11px; color:var(--muted); margin:8px 0; line-height:1.6; }
+.dc-help b { color:var(--text); }
+.ck-preview { margin-left:auto; font-size:13px; color:var(--accent2); }
+.ck-preview b { color:var(--text); }
+.ob-hero-row select { max-width:120px; flex-shrink:0; }
+
+/* Combat tracker */
+.combat-card.active { border-color:color-mix(in srgb, var(--red) 45%, var(--border)); }
+.init-list { display:flex; flex-direction:column; gap:6px; }
+.init-row { display:flex; align-items:center; gap:9px; padding:8px 10px; background:var(--bg2); border:1px solid var(--border); border-radius:10px; font-size:14px; }
+.init-row.cur { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 16%, var(--card)); }
+.init-row.foe .init-num { color:var(--red); }
+.init-num { width:30px; height:30px; flex-shrink:0; display:flex; align-items:center; justify-content:center; background:var(--card2); border:1px solid var(--border); border-radius:8px; font-weight:800; font-size:13px; color:var(--accent2); }
+.init-name { flex:1; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.init-hp { font-size:12px; color:var(--muted); }

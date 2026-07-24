@@ -16,14 +16,15 @@ const State = {
       name: "Nouvelle campagne",
       genre: "fantasy",
       tone: "aventure",
-      system: "d20",
+      system: "dnd5e",         // moteur D&D 5e par défaut (lore adaptable)
       theme: "royal",
       accent: "",
       pitch: "",
       stakes: "",              // l'enjeu central
-      attrs: DATA.GENRES.fantasy.attrs.slice(),
+      attrs: Object.values(DND.ABILITIES),  // les 6 caracs 5e (fallback d'affichage)
       session: 1,
       scene: { title: "", mood: "" },
+      combat: { active: false, round: 0, turn: 0, order: [] },  // suivi d'initiative
       heroes: [],              // les PJ (jusqu'à ~6)
       npcs: [],                // PNJ
       places: [],              // lieux
@@ -45,18 +46,41 @@ const State = {
       name: "Nouveau héros",
       player: "",              // le vrai joueur à la table
       avatar: "🛡️",
-      concept: "",             // classe / archétype / rôle
-      hp: 20, maxHp: 20,
-      armor: 12,               // défense / seuil
-      stats: {},               // rempli selon attrs de la campagne
-      skills: "",              // compétences / atouts (texte libre)
+      // ── D&D 5e ──
+      race: "Humain",
+      cls: "Guerrier",         // classe
+      level: 1,
+      concept: "",             // sous-classe / archétype (libre)
+      abilities: { FOR: 10, DEX: 10, CON: 10, INT: 10, SAG: 10, CHA: 10 },
+      skillProfs: [],          // compétences maîtrisées
+      saveProfs: [],           // jets de sauvegarde maîtrisés (caracs)
+      hp: 10, maxHp: 10,
+      armor: 12,               // classe d'armure (CA)
+      speed: 9,                // vitesse (m)
+      deathSaves: { s: 0, f: 0 },
+      hitDice: "1d10",
+      spells: "",              // sorts / emplacements (texte libre)
+      // ── commun ──
+      stats: {},               // caracs génériques (systèmes non-5e)
+      feats: "",               // capacités / dons / atouts (texte libre)
       gear: [],                // inventaire
-      abilities: "",           // capacités spéciales
-      conditions: [],          // états (blessé, empoisonné…)
+      conditions: [],          // états (5e)
       xp: 0,
       notes: "",
       bonds: "",               // liens / relations
     }, over);
+  },
+
+  // Applique les valeurs par défaut de la classe (dé de vie, sauvegardes, CA de base)
+  applyClassDefaults(h) {
+    const cl = DND.CLASSES[h.cls];
+    if (!cl) return;
+    h.hitDice = h.level + "d" + cl.hd;
+    if (!h.saveProfs || !h.saveProfs.length) h.saveProfs = cl.saves.slice();
+    const conMod = DND.mod(h.abilities.CON);
+    const suggested = DND.baseHp(h.cls, conMod, h.level);
+    if (!h._hpTouched) { h.maxHp = suggested; h.hp = suggested; }
+    if (!h.armor || h.armor === 12) h.armor = 10 + DND.mod(h.abilities.DEX);
   },
 
   /* ---------- Chargement / sauvegarde ---------- */
@@ -72,6 +96,7 @@ const State = {
     if (!this.data.backend) this.data.backend = { url: location.origin, token: "" };
     if (!this.data.ai) this.data.ai = { provider: "backend", key: "", model: "" };
     if (!this.data.players) this.data.players = [];
+    this.migrate();
     return this.data;
   },
 
@@ -109,11 +134,30 @@ const State = {
   addHero(over) {
     const c = this.current(); if (!c) return null;
     const h = this.blankHero(over);
-    // initialise les stats selon les attributs de la campagne
-    (c.attrs || []).forEach(a => { if (h.stats[a] === undefined) h.stats[a] = 0; });
+    if (c.system === "dnd5e") this.applyClassDefaults(h);
+    else (c.attrs || []).forEach(a => { if (h.stats[a] === undefined) h.stats[a] = 0; });
     c.heroes.push(h);
     this.save();
     return h;
+  },
+
+  // Migration douce : garantit les champs 5e sur d'anciennes fiches.
+  migrate() {
+    (this.data.campaigns || []).forEach(c => {
+      if (!c.combat) c.combat = { active: false, round: 0, turn: 0, order: [] };
+      (c.heroes || []).forEach(h => {
+        if (!h.abilities || typeof h.abilities !== "object") h.abilities = { FOR: 10, DEX: 10, CON: 10, INT: 10, SAG: 10, CHA: 10 };
+        if (!h.skillProfs) h.skillProfs = [];
+        if (!h.saveProfs) h.saveProfs = [];
+        if (h.level == null) h.level = 1;
+        if (!h.race) h.race = "Humain";
+        if (!h.cls) h.cls = "Guerrier";
+        if (!h.deathSaves) h.deathSaves = { s: 0, f: 0 };
+        if (h.speed == null) h.speed = 9;
+        // ancien champ "abilities" servait de texte capacités → migré vers feats
+        if (typeof h.feats !== "string") h.feats = "";
+      });
+    });
   },
   removeHero(id) {
     const c = this.current(); if (!c) return;

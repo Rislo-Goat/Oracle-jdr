@@ -1,8 +1,8 @@
 /* Oracle — service worker : cache réseau-d'abord pour la coquille PWA. */
-const CACHE = "oracle-v1";
+const CACHE = "oracle-v2";
 const ASSETS = [
   "./", "index.html", "css/app.css",
-  "js/data.js", "js/state.js", "js/dice.js", "js/oracle.js", "js/ui.js", "js/app.js",
+  "js/data.js", "js/dnd.js", "js/state.js", "js/dice.js", "js/oracle.js", "js/ui.js", "js/app.js",
   "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png"
 ];
 self.addEventListener("install", e => {
