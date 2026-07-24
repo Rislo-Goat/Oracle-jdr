@@ -156,9 +156,8 @@ const UI = {
       let v = State.data.voiceName ? voices.find(x => x.name === State.data.voiceName) : null;
       if (!v) v = this.bestVoice(voices);
       if (v) { u.voice = v; u.lang = v.lang; } else u.lang = "fr-FR";
-      // Voix naturelle (plus robotique). Légère nuance pour une IA/PNJ, sans exagérer.
-      if (kind === "pnj") { u.pitch = 0.92; u.rate = 0.97; }
-      else { u.pitch = 1.0; u.rate = 1.0; }
+      // Voix naturelle : hauteur et débit normaux (pas de trafic qui rend le rendu haché).
+      u.pitch = 1.0; u.rate = 1.0;
       synth.speak(u);
       // Correctif iOS : la synthèse se met parfois en pause juste après speak()
       setTimeout(() => { try { if (synth.paused) synth.resume(); } catch (e) {} }, 120);
