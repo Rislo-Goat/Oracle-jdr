@@ -71,6 +71,13 @@ const DND = {
   /* ---------- Génération de caracs ---------- */
   STANDARD_ARRAY: [15, 14, 13, 12, 10, 8],
 
+  /* ---------- XP & niveaux (progression 5e classique) ---------- */
+  XP_THRESHOLDS: [0, 300, 900, 2700, 6500, 14000, 23000, 34000, 48000, 64000, 85000, 100000, 120000, 140000, 165000, 195000, 225000, 265000, 305000, 355000],
+  levelForXp(xp) { let lv = 1; for (let i = 0; i < this.XP_THRESHOLDS.length; i++) if ((xp || 0) >= this.XP_THRESHOLDS[i]) lv = i + 1; return Math.min(20, lv); },
+  xpForNext(level) { return level >= 20 ? null : this.XP_THRESHOLDS[level]; },
+  canLevelUp(hero) { return this.levelForXp(hero.xp || 0) > (hero.level || 1); },
+  hpGainOnLevel(cls, conMod) { const hd = (this.CLASSES[cls] || { hd: 8 }).hd; return Math.max(1, Math.floor(hd / 2) + 1 + conMod); },
+
   /* ---------- Helpers ---------- */
   mod(score) { return Math.floor(((score || 10) - 10) / 2); },
   modStr(score) { const m = this.mod(score); return (m >= 0 ? "+" : "") + m; },

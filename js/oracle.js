@@ -122,6 +122,7 @@ Tu peux modifier la partie ET l'ambiance visuelle en direct en ajoutant, À LA F
 • [JET: cible=Kael; comp=Discrétion; diff=15]  → DEMANDE un test de COMPÉTENCE : l'app calcule le modificateur du héros (carac + maîtrise) et lance 1d20. Variantes 5e : sauvegarde=DEX (jet de sauvegarde), carac=FOR (test de carac brut), attaque=Épée; bonus=5 (jet d'attaque vs CA=diff). Tu peux ajouter avantage=1 ou desavantage=1. Ne donne JAMAIS toi-même le résultat chiffré — laisse l'app lancer avec les vraies stats.
 • [DEGATS: cible=Goule; formule=1d8+3; source=Lame vibro; type=tranchant]  → DEMANDE un jet de DÉGÂTS : le joueur lance ses dés de dégâts (carte dédiée) et l'app applique les PV. Émets-le APRÈS une attaque réussie, au lieu d'appliquer [PV] toi-même. Utilise le bon dé de l'arme/sort (dague 1d4, épée courte/rapière 1d6, épée longue/lame 1d8, arme lourde 1d10/1d12 ; ajoute le modificateur pertinent). Si la cible est un héros (dégâts subis), mets son nom en cible : l'app réduit ses PV. Ne chiffre jamais les dégâts toi-même — laisse le joueur lancer.
 • [COMBAT: start]  démarre le suivi d'initiative (l'app tire l'init des héros). [COMBAT: stop] le termine. [INIT: nom=Goule; valeur=14; pv=15]  ajoute un ennemi dans l'ordre d'initiative. [TOUR]  passe au combattant suivant.
+• [XP: cible=groupe; montant=100]  → attribue de l'XP (à tout le groupe, ou cible=Kael pour un seul). L'app cumule et signale quand un héros peut monter de niveau. Récompense après un combat, une énigme résolue, une étape importante.
 • [FAIT: Le pont s'effondre derrière eux]  → inscrit un événement marquant dans la chronique.
 • [MEMO: L'héritier porte une marque de naissance en forme de croissant]  → ajoute un fait durable au CANON de la campagne (à retenir pour toujours). Max 2 par réponse.
 • [AMBIANCE: theme=ember; accent=#ff5500]  → change le THÈME visuel de l'app pour coller au moment (thèmes : default, royal, ember, neon, matrix, forest, ocean, light, cream).
@@ -145,6 +146,7 @@ MÉTHODE D'UN MJ EXPERT (applique-la en continu) :
 • Factions & conséquences : le monde bouge même sans les héros ; leurs choix ont des répercussions durables (inscris-les via [MEMO:] et [FAIT:]).
 • Équilibre : combats et défis calibrés au niveau et au nombre de héros ; laisse une porte de sortie ou une option maligne.
 • Spotlight : veille à ce que CHAQUE joueur ait son moment (surtout si peu nombreux) ; sollicite les compétences et les liens de chacun.
+• Progression (campagne classique) : récompense l'XP après les combats et les étapes clés via [XP: groupe; montant=…] (ordre de grandeur niv.1 : petit combat ~50-100 XP/héros, gros ~200+). Annonce clairement le BUTIN trouvé et ajoute-le à l'inventaire via [OBJET: cible=…; ajoute=…] (arme, objet, or…) en expliquant ce que c'est. Quand un héros passe un niveau, explique-lui les nouvelles capacités que sa classe débloque à ce niveau (tu connais la 5e) et invite-le à les noter.
 • Reprise en cours : si la campagne est reprise/importée, commence par un bref "Précédemment…" (2-3 phrases) pour resituer, puis relance sur un choix concret.
 • Prépa (mode atelier) : quand on te demande de bâtir, structure comme un module pro — accroche → factions & PNJ → 2-3 lieux clés → complications montantes → climax → récompenses, INSPIRÉ des grands canons d'aventure (sans copier de texte sous copyright), 100% réutilisable.`;
 
@@ -360,6 +362,19 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
         c.combat.turn++;
         if (c.combat.turn >= c.combat.order.length) { c.combat.turn = 0; c.combat.round++; }
         effects.push("⏭️ tour");
+      }],
+      [/\[XP:\s*([^\]]+)\]/gi, (a) => {
+        const o = kv(a); const amt = parseInt(o.montant || o.amount || o.xp || o.valeur, 10) || 0; if (!amt) return;
+        const cible = o.cible || o.target || "";
+        let targets;
+        if (!cible || /groupe|group|tous|all|équipe|equipe|party/i.test(cible)) targets = c.heroes;
+        else { const h = State.heroByName(cible); targets = h ? [h] : []; }
+        targets.forEach(h => {
+          h.xp = (h.xp || 0) + amt;
+          const canLv = typeof DND !== "undefined" && DND.levelForXp(h.xp) > (h.level || 1);
+          State.log({ kind: "event", text: `✨ ${h.name} gagne ${amt} XP (total ${h.xp})${canLv ? ` — peut passer niveau ${DND.levelForXp(h.xp)} !` : ""}` });
+        });
+        effects.push("✨ +" + amt + " XP");
       }],
       [/\[FAIT:\s*([^\]]+)\]/gi, (a) => { State.log({ kind: "event", text: a.trim() }); effects.push("⚡ fait"); }],
       [/\[MEMO:\s*([^\]]+)\]/gi, (a) => { State.remember(a.trim()); effects.push("🧠 canon"); }],

@@ -469,6 +469,7 @@ const UI = {
         ${stats ? `<div class="stat-row">${stats}</div>` : ""}
         ${h.conditions && h.conditions.length ? `<div class="cond-row">${h.conditions.map(x => `<span class="cond">${this.esc(x)}</span>`).join("")}</div>` : ""}
         ${h.gear && h.gear.length ? `<div class="gear-row">🎒 ${h.gear.map(x => this.esc(x)).join(", ")}</div>` : ""}
+        ${is5e && DND.canLevelUp(h) ? `<div class="card-lvlup">⬆️ Peut monter de niveau ${DND.levelForXp(h.xp)} !</div>` : ""}
       </div>`;
     }).join("");
     el.innerHTML = `
@@ -522,6 +523,9 @@ const UI = {
           <label class="f">Vitesse (m)<input type="number" step="1.5" value="${h.speed}" onchange="UI.setHeroField('${id}','speed',this.value)"></label>
         </div>
         <div class="hd-line">🎲 Dés de vie : <b>${this.esc(h.hitDice)}</b> · Init : <b>+${DND.abilityMod(h, "DEX")}</b> · Jets de mort : ${"●".repeat(h.deathSaves.s)}${"○".repeat(3 - h.deathSaves.s)} / ${"✕".repeat(h.deathSaves.f)}${"○".repeat(3 - h.deathSaves.f)}</div>
+        <div class="xp-line">✨ XP : <b>${h.xp || 0}</b>${DND.xpForNext(h.level) != null ? ` / ${DND.xpForNext(h.level)} <span class="cls-base">(niv. ${h.level + 1})</span>` : " — niveau max"}
+          <input type="number" class="xp-in" value="${h.xp || 0}" onchange="UI.setHeroField('${id}','xp',this.value)" title="XP">
+          ${DND.canLevelUp(h) ? `<button class="btn btn-primary btn-sm lvlup" onclick="UI.levelUp('${id}')">⬆️ Passer niveau ${DND.levelForXp(h.xp)}</button>` : ""}</div>
 
         <h3 class="mini-h3">Sauvegardes maîtrisées</h3>
         <div class="sk-wrap">${saveChips}</div>
@@ -563,6 +567,18 @@ const UI = {
   setAbility(id, a, v) { const h = State.hero(id); h.abilities[a] = Math.max(1, Math.min(30, parseInt(v, 10) || 10)); State.save(); const el = document.getElementById(`mod-${id}-${a}`); if (el) el.textContent = DND.modStr(h.abilities[a]); this.renderHeader(); },
   setHeroClass(id, v) { const h = State.hero(id); h.cls = v; const cl = DND.CLASSES[v]; if (cl) { h.saveProfs = cl.saves.slice(); h.hitDice = h.level + "d" + cl.hd; } State.save(); this.editHero(id); },
   setHeroLevel(id, v) { const h = State.hero(id); h.level = Math.max(1, Math.min(20, parseInt(v, 10) || 1)); const cl = DND.CLASSES[h.cls]; if (cl) h.hitDice = h.level + "d" + cl.hd; State.save(); this.editHero(id); },
+  levelUp(id) {
+    const h = State.hero(id); if (!h || !DND.canLevelUp(h)) return;
+    h.level = Math.min(20, (h.level || 1) + 1);
+    const cl = DND.CLASSES[h.cls]; const conMod = DND.mod(h.abilities.CON);
+    const gain = DND.hpGainOnLevel(h.cls, conMod);
+    h.maxHp += gain; h.hp += gain;
+    if (cl) h.hitDice = h.level + "d" + cl.hd;
+    State.save();
+    State.log({ kind: "event", text: `⬆️ ${h.name} passe niveau ${h.level} ! +${gain} PV, maîtrise +${DND.profBonus(h.level)}. Demande à l'Oracle les capacités débloquées.` });
+    this.toast(`⬆️ ${h.name} niveau ${h.level} ! +${gain} PV`, "ok");
+    this.editHero(id); this.renderHeader();
+  },
   setHeroHp(id, v, max) { const h = State.hero(id); h._hpTouched = true; if (max) h.maxHp = parseInt(v, 10) || 0; else h.hp = parseInt(v, 10) || 0; State.save(); },
   toggleSkill(id, sk) { const h = State.hero(id); h.skillProfs = h.skillProfs || []; const i = h.skillProfs.indexOf(sk); if (i < 0) h.skillProfs.push(sk); else h.skillProfs.splice(i, 1); State.save(); this.editHero(id); },
   toggleSave(id, a) { const h = State.hero(id); h.saveProfs = h.saveProfs || []; const i = h.saveProfs.indexOf(a); if (i < 0) h.saveProfs.push(a); else h.saveProfs.splice(i, 1); State.save(); this.editHero(id); },
