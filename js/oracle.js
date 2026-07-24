@@ -175,7 +175,7 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
   async ask(userMessage, mode = "play") {
     const c = State.current();
     const history = (mode === "oracle" ? c.chat : c.chronicle.filter(e => e.kind === "action" || e.kind === "oracle"))
-      .slice(-14).map(e => ({ role: e.kind === "oracle" ? "ai" : "user", content: (e.who ? e.who + " : " : "") + e.text }));
+      .slice(-8).map(e => ({ role: e.kind === "oracle" ? "ai" : "user", content: (e.who ? e.who + " : " : "") + e.text }));
     const messages = [...history, { role: "user", content: userMessage }];
     const system = this.systemPrompt(mode);
     const ai = State.data.ai;
@@ -216,17 +216,23 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
     // pour ne pas tomber hors-ligne sur une micro-coupure 4G. Pas de retry
     // sur une clé invalide (401/403) — inutile, on le signale.
     let lastErr;
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
       try {
         const text = await call();
         this.lastStatus = { mode: "ai", provider: ai.provider };
         return text;
       } catch (e) {
         lastErr = e;
-        const transient = /429|500|502|503|504|network|timeout|fetch|failed|econn|réseau|load failed/i.test(e.message);
-        const auth = /401|403|invalid|api key|clé|permission|denied|unauthor/i.test(e.message);
-        if (auth || !transient) break;
-        await new Promise(r => setTimeout(r, 700 * (i + 1)));
+        const msg = e.message || "";
+        const rate = /429|rate.?limit|too many/i.test(msg);
+        const dailyQuota = /per day|daily|quota exceeded|out of|insufficient|billing/i.test(msg);
+        const transient = rate || /500|502|503|504|network|timeout|fetch|failed|econn|réseau|load failed/i.test(msg);
+        const auth = /401|403|invalid.?api.?key|api key|unauthor|permission|denied/i.test(msg);
+        if (auth || dailyQuota || !transient) break;
+        // Sur 429, Groq indique souvent « try again in X s » : on respecte ce délai.
+        const suggested = this.retryDelay(msg);
+        this.lastStatus = { mode: "wait", reason: rate ? "limite de débit — patiente…" : "réseau instable — nouvelle tentative…" };
+        await new Promise(r => setTimeout(r, suggested || (900 * (i + 1))));
       }
     }
     this.lastStatus = { mode: "offline", reason: this.cause(lastErr.message) };
@@ -237,7 +243,7 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
-      body: JSON.stringify({ model, max_tokens: 1600, system, messages: messages.map(m => ({ role: m.role === "ai" ? "assistant" : "user", content: m.content })) }),
+      body: JSON.stringify({ model, max_tokens: 1100, system, messages: messages.map(m => ({ role: m.role === "ai" ? "assistant" : "user", content: m.content })) }),
     });
     if (!r.ok) throw new Error(`HTTP ${r.status} — ${(await r.text()).slice(0, 160)}`);
     const j = await r.json();
@@ -247,7 +253,7 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
     const r = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json", "authorization": "Bearer " + key },
-      body: JSON.stringify({ model, max_tokens: 1600, messages: [{ role: "system", content: system }, ...messages.map(m => ({ role: m.role === "ai" ? "assistant" : "user", content: m.content }))] }),
+      body: JSON.stringify({ model, max_tokens: 1100, messages: [{ role: "system", content: system }, ...messages.map(m => ({ role: m.role === "ai" ? "assistant" : "user", content: m.content }))] }),
     });
     if (!r.ok) throw new Error(`HTTP ${r.status} — ${(await r.text()).slice(0, 160)}`);
     const j = await r.json();
@@ -473,13 +479,28 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
   /* ---------- Diagnostic ---------- */
   cause(err) {
     const e = (err || "").toLowerCase();
-    if (/429|quota|rate.?limit|crédit|credit|billing|exceeded|insufficient/.test(e)) return "plus de crédit / quota";
-    if (/401|403|auth|invalid|api key|clé/.test(e)) return "clé invalide";
+    if (/per day|daily|quota exceeded|billing|insufficient|out of credit/.test(e)) return "quota du jour atteint";
+    if (/429|rate.?limit|too many/.test(e)) return "limite de débit (trop de requêtes/minute)";
+    if (/401|403|invalid.?api.?key|api key|unauthor|clé/.test(e)) return "clé invalide";
     if (/network|timeout|injoign|fetch|failed|réseau|econn|502|503|504/.test(e)) return "réseau indisponible";
     return "IA indisponible";
   },
+  // Extrait le délai conseillé d'un message d'erreur 429 (« try again in 6.5s / 500ms »).
+  retryDelay(msg) {
+    const m = /try again in\s*([\d.]+)\s*(ms|s)/i.exec(msg || "");
+    if (!m) return 0;
+    const v = parseFloat(m[1]) * (m[2].toLowerCase() === "ms" ? 1 : 1000);
+    return Math.min(12000, Math.max(600, Math.round(v) + 300)); // marge + plafond 12 s
+  },
+  // Message d'avertissement selon la cause. Pour une simple limite de débit,
+  // on rassure (ce n'est pas une panne : il suffit de patienter/réessayer).
   downNote(err) {
-    return `\n\n———\n⚠️ _Oracle IA en pause (${this.cause(err)}) — mode hors-ligne actif : dés, fiches et générateurs marchent toujours. Configure l'IA dans l'onglet Table pour la narration complète._`;
+    const c = this.cause(err);
+    if (/limite de débit/.test(c))
+      return `\n\n———\n⚠️ _Oracle un peu saturé (${c}). Le tier gratuit limite le nombre de requêtes par minute — patiente ~30 s puis réessaie (ou appuie de nouveau sur ▶). Rien n'est cassé, ta partie est intacte._`;
+    if (/quota du jour/.test(c))
+      return `\n\n———\n⚠️ _Quota gratuit du jour atteint chez le fournisseur. Il se réinitialise sous 24 h. Astuce : ajoute une 2ᵉ clé (Gemini gratuit) dans l'onglet Table pour ne jamais être bloqué._`;
+    return `\n\n———\n⚠️ _Oracle IA en pause (${c}) — mode hors-ligne actif : dés, fiches et générateurs marchent toujours. Configure l'IA dans l'onglet Table pour la narration complète._`;
   },
 
   /* ---------- Oracle hors-ligne (sans IA) ---------- */
