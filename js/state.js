@@ -244,10 +244,25 @@ const State = {
   exportJSON() {
     return JSON.stringify(this.data, null, 2);
   },
+  // Import intelligent : fusionne les campagnes sans écraser tes réglages
+  // (clé IA, backend, joueurs). Accepte une sauvegarde complète OU un simple
+  // « pack de campagne » { campaigns:[…] }.
   importJSON(txt) {
     const obj = JSON.parse(txt);
-    if (!obj.campaigns) throw new Error("Format invalide");
-    this.data = obj;
+    if (!obj || !Array.isArray(obj.campaigns)) throw new Error("Format invalide");
+    let last = null;
+    obj.campaigns.forEach(ic => {
+      if (!ic || !ic.id) ic.id = "camp_" + Math.random().toString(36).slice(2, 9);
+      const i = this.data.campaigns.findIndex(c => c.id === ic.id);
+      if (i >= 0) this.data.campaigns[i] = ic; else this.data.campaigns.push(ic);
+      last = ic.id;
+    });
+    if (last) this.data.currentId = last;
+    // Ne récupère les réglages du fichier QUE s'ils manquent localement
+    // (on ne veut jamais écraser une clé IA déjà saisie sur le téléphone).
+    if (obj.ai && (!this.data.ai || !this.data.ai.key) && obj.ai.key) this.data.ai = obj.ai;
+    if (obj.players && (!this.data.players || !this.data.players.length)) this.data.players = obj.players;
+    this.migrate();
     this.save();
   },
 };
