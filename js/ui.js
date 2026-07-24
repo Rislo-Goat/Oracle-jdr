@@ -736,7 +736,12 @@ const UI = {
 
       <div class="card">
         <h3>🔮 Oracle IA</h3>
-        <div class="hint">💸 <b>100 % gratuit possible</b> : <b>Groq</b> et <b>Google Gemini</b> offrent des modèles gratuits, largement suffisants pour l'Oracle. Le plus simple : mets une de ces clés sur ton backend Railway (aucune clé à coller ici). Sinon, colle une clé gratuite directement ci-dessous.</div>
+        <div class="ai-status ${ai.key || ai.provider === "backend" ? "on" : "off"}">${this.aiStatusLabel()}</div>
+        <div class="key-quick">
+          <label class="f">🔑 Colle ta clé ici (Groq ou Gemini — gratuit)<input id="quickKey" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="gsk_…  ou  AIza…" onchange="UI.pasteKey(this.value)"></label>
+          <div class="hint">Colle et c'est tout : l'app détecte le fournisseur et active l'Oracle. Ta clé reste sur ton téléphone. <a class="link" href="https://console.groq.com/keys" target="_blank">↗ Obtenir une clé Groq gratuite</a></div>
+        </div>
+        <details class="ai-adv"><summary>Réglages avancés</summary>
         <label class="f">Fournisseur<select id="aiProv" onchange="UI.setAIProvider(this.value)">${Object.entries(DATA.AI_PROVIDERS).map(([k, p]) => `<option value="${k}" ${k === ai.provider ? "selected" : ""}>${p.name}</option>`).join("")}</select></label>
         ${ai.provider === "backend" ? `
           <label class="f">URL du backend<input value="${this.esc(be.url)}" onchange="UI.setBackend('url',this.value)" placeholder="https://…up.railway.app"></label>
@@ -748,6 +753,7 @@ const UI = {
           ${prov.url ? `<a class="link" href="${prov.url}" target="_blank">↗ Obtenir une clé</a>` : ""}
           <div class="hint">Ta clé reste sur ton téléphone.</div>
         `}
+        </details>
       </div>
 
       <div class="card">
@@ -787,6 +793,23 @@ const UI = {
   setAttrs(v) { const c = State.current(); c.attrs = v.split(",").map(s => s.trim()).filter(Boolean); State.save(); },
   setTheme(k) { const c = State.current(); c.theme = k; State.save(); State.applyTheme(); this.renderTable(); this.renderHeader(); },
   setStyleReset() { const c = State.current(); c.style = {}; c.customCss = ""; State.save(); State.applyTheme(); this.renderTable(); },
+  aiStatusLabel() {
+    const ai = State.data.ai;
+    if (ai.provider === "backend") return "🛰️ Mode backend — clé sur ton serveur Railway.";
+    if (ai.key) { const n = (DATA.AI_PROVIDERS[ai.provider] || {}).name || ai.provider; return "✅ Oracle actif — " + n; }
+    return "⚠️ Oracle pas encore activé — colle ta clé ci-dessous.";
+  },
+  pasteKey(v) {
+    v = (v || "").trim();
+    if (!v) return;
+    const d = State.data;
+    if (/^gsk_/.test(v)) { d.ai.provider = "groq"; d.ai.model = DATA.AI_PROVIDERS.groq.model; d.ai.key = v; this.toast("🔮 Clé Groq détectée — Oracle activé ✅", "ok"); }
+    else if (/^AIza/.test(v)) { d.ai.provider = "gemini"; d.ai.model = DATA.AI_PROVIDERS.gemini.model; d.ai.key = v; this.toast("🔮 Clé Gemini détectée — Oracle activé ✅", "ok"); }
+    else if (/^sk-or-/.test(v)) { d.ai.provider = "openrouter"; d.ai.model = DATA.AI_PROVIDERS.openrouter.model; d.ai.key = v; this.toast("🔮 Clé OpenRouter détectée ✅", "ok"); }
+    else { d.ai.key = v; if (d.ai.provider === "backend") d.ai.provider = "groq"; this.toast("Clé enregistrée. Vérifie le fournisseur dans les réglages avancés.", "warn"); }
+    Oracle.lastStatus = null; this.setupDismissed = false;
+    State.save(); this.renderTable();
+  },
   setAIProvider(v) { State.data.ai.provider = v; State.data.ai.model = DATA.AI_PROVIDERS[v].model || ""; State.save(); this.renderTable(); },
   setAIKey(v) { State.data.ai.key = v.trim(); State.save(); },
   setAIModel(v) { State.data.ai.model = v.trim(); State.save(); },

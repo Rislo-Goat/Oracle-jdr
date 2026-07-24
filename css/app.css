@@ -331,6 +331,14 @@ textarea { resize:none; line-height:1.45; }
 .camp-row:first-of-type { border-top:none; }
 .camp-pick { flex:1; text-align:left; font-size:14px; font-weight:600; padding:6px 0; font-family:var(--serif); }
 .camp-row.cur .camp-pick { color:var(--accent2); }
+.ai-status { font-size:12.5px; font-weight:700; padding:8px 11px; border-radius:8px; margin-bottom:11px; border:1px solid var(--border); }
+.ai-status.on { color:var(--green); border-color:color-mix(in srgb,var(--green) 40%,var(--border)); background:color-mix(in srgb,var(--green) 10%,transparent); }
+.ai-status.off { color:var(--orange); border-color:color-mix(in srgb,var(--orange) 40%,var(--border)); background:color-mix(in srgb,var(--orange) 10%,transparent); }
+.key-quick #quickKey { font-size:15px; }
+.ai-adv { margin-top:6px; }
+.ai-adv summary { font-size:12.5px; color:var(--muted); cursor:pointer; padding:6px 0; list-style:none; }
+.ai-adv summary::-webkit-details-marker { display:none; }
+.ai-adv summary::before { content:"⚙️ "; }
 
 /* ============ Onboarding ============ */
 .onboarding { position:fixed; inset:0; background:var(--bg); z-index:200; display:flex; flex-direction:column;
