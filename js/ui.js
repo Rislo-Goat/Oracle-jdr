@@ -1149,9 +1149,11 @@ const UI = {
       <div class="card">
         <h3>📚 Mes campagnes</h3>
         ${d.campaigns.map(cc => `<div class="camp-row ${cc.id === d.currentId ? "cur" : ""}">
-          <button class="camp-pick" onclick="UI.switchCamp('${cc.id}')">${(DATA.GENRES[cc.genre] || {}).ico || "🎲"} ${this.esc(cc.name)}${cc.id === d.currentId ? " ✓" : ""}</button>
-          ${d.campaigns.length > 1 ? `<button class="wdel" onclick="UI.delCamp('${cc.id}')">✕</button>` : ""}
+          <button class="camp-pick" onclick="UI.switchCamp('${cc.id}')">${(DATA.GENRES[cc.genre] || {}).ico || "🎲"} ${this.esc(cc.name)}${cc.id === d.currentId ? " ✓" : ""} <span class="camp-meta">${(cc.heroes || []).length} héros · séance ${cc.session || 1}</span></button>
+          <button class="wrestart" title="Recommencer à zéro (garder les héros)" onclick="UI.restartCamp('${cc.id}')">🔄</button>
+          <button class="wdel" title="Supprimer" onclick="UI.delCamp('${cc.id}')">✕</button>
         </div>`).join("")}
+        <div class="hint">🔄 = repartir à zéro en gardant les héros · ✕ = supprimer la campagne</div>
         <button class="btn btn-primary btn-block" onclick="UI.newCampaignFlow()">＋ Nouvelle campagne</button>
       </div>
 
@@ -1236,7 +1238,22 @@ const UI = {
   // Nom de classe reskiné selon l'univers de la campagne (mécanique inchangée)
   skinCls(cls) { const c = State.current(); const sk = c && c.skin ? DATA.SKINS[c.skin] : null; return (sk && sk.classNames && sk.classNames[cls]) || cls; },
   switchCamp(id) { State.switchCampaign(id); this.go("play"); },
-  delCamp(id) { if (confirm("Supprimer cette campagne définitivement ?")) { State.deleteCampaign(id); this.renderTable(); this.renderHeader(); } },
+  restartCamp(id) {
+    const c = State.data.campaigns.find(x => x.id === id); if (!c) return;
+    if (!confirm(`Recommencer « ${c.name} » à zéro ?\n\nL'histoire (scène, PNJ, quêtes, journal) est effacée pour repartir à neuf. Tes ${(c.heroes || []).length} héros sont CONSERVÉS (remis en pleine forme).`)) return;
+    State.restartCampaign(id);
+    if (State.data.currentId !== id) State.switchCampaign(id);
+    this.toast("🔄 Campagne remise à neuf — héros conservés", "ok");
+    this.go("play"); this.renderHeader(); State.applyTheme();
+  },
+  delCamp(id) {
+    const c = State.data.campaigns.find(x => x.id === id);
+    if (!confirm(`Supprimer « ${c ? c.name : "cette campagne"} » définitivement ?\n\nLes héros et toute l'histoire de cette campagne seront perdus. (Astuce : 🔄 recommence sans perdre les héros.)`)) return;
+    State.deleteCampaign(id);
+    if (!State.current()) { App.startOnboarding(); return; }  // plus aucune campagne → assistant de création
+    this.renderTable(); this.renderHeader(); State.applyTheme();
+    this.toast("Campagne supprimée", "ok");
+  },
   newCampaignFlow() { App.startOnboarding(true); },
   exportData() {
     const blob = new Blob([State.exportJSON()], { type: "application/json" });

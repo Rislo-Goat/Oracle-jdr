@@ -155,6 +155,37 @@ const State = {
     this.save();
   },
 
+  // Remet une campagne À NEUF (chronique, scène, PNJ, lieux, quêtes, mémoire, combat…)
+  // tout en GARDANT les héros (leur build reste intact ; on les remet juste en pleine
+  // forme, comme au départ d'une aventure). Le décor/univers choisi est conservé.
+  restartCampaign(id) {
+    const c = this.data.campaigns.find(x => x.id === id);
+    if (!c) return null;
+    c.chronicle = [];
+    c.chat = [];
+    c.npcs = [];
+    c.places = [];
+    c.quests = [];
+    c.bestiary = [];
+    c.lore = [];
+    c.scene = { title: "", mood: "" };
+    c.combat = { active: false, round: 0, turn: 0, order: [] };
+    c.session = 1;
+    c.kickoff = "";
+    c.customCss = "";
+    c.style = {};
+    // Héros conservés : on les remet juste « frais » (PV pleins, aucun état, repos complet).
+    (c.heroes || []).forEach(h => {
+      h.hp = h.maxHp;
+      h.conditions = [];
+      h.deathSaves = { s: 0, f: 0 };
+      h.hitDiceUsed = 0;
+      h.slotsUsed = {};
+    });
+    this.save();
+    return c;
+  },
+
   /* ---------- Héros ---------- */
   // Applique le profil recommandé de la classe (caracs, compétences, sauvegardes,
   // équipement, sorts) + les bonus de race, puis recalcule PV/CA. Rend le perso
