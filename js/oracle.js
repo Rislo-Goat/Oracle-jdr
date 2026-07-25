@@ -273,7 +273,7 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
-      body: JSON.stringify({ model, max_tokens: 1100, system, messages: messages.map(m => ({ role: m.role === "ai" ? "assistant" : "user", content: m.content })) }),
+      body: JSON.stringify({ model, max_tokens: 2600, system, messages: messages.map(m => ({ role: m.role === "ai" ? "assistant" : "user", content: m.content })) }),
     });
     if (!r.ok) throw new Error(`HTTP ${r.status} — ${(await r.text()).slice(0, 160)}`);
     const j = await r.json();
@@ -283,7 +283,7 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
     const r = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json", "authorization": "Bearer " + key },
-      body: JSON.stringify({ model, max_tokens: 1100, messages: [{ role: "system", content: system }, ...messages.map(m => ({ role: m.role === "ai" ? "assistant" : "user", content: m.content }))] }),
+      body: JSON.stringify({ model, max_tokens: 2600, messages: [{ role: "system", content: system }, ...messages.map(m => ({ role: m.role === "ai" ? "assistant" : "user", content: m.content }))] }),
     });
     if (!r.ok) throw new Error(`HTTP ${r.status} — ${(await r.text()).slice(0, 160)}`);
     const j = await r.json();
@@ -293,7 +293,7 @@ Le MJ t'envoie ce que font/choisissent les joueurs, en direct. Réagis en co-MJ 
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ system_instruction: { parts: [{ text: system }] }, contents: messages.map(m => ({ role: m.role === "ai" ? "model" : "user", parts: [{ text: m.content }] })), generationConfig: { maxOutputTokens: 1100 } }),
+      body: JSON.stringify({ system_instruction: { parts: [{ text: system }] }, contents: messages.map(m => ({ role: m.role === "ai" ? "model" : "user", parts: [{ text: m.content }] })), generationConfig: { maxOutputTokens: 2600 } }),
     });
     if (!r.ok) throw new Error(`HTTP ${r.status} — ${(await r.text()).slice(0, 160)}`);
     const j = await r.json();
